@@ -65,6 +65,6 @@ server.js              # arranque del servidor
 ```
 
 ### Notas para el equipo
-- Sequelize queda configurado para usar SQLite en local por simplicidad. Cambia `DB_DIALECT` y credenciales en `.env` para otros motores.
 - `sequelize-cli` está mapeado a `src/database` y `src/app/models` vía `.sequelizerc`.
+
 
