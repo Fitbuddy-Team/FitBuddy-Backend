@@ -1,6 +1,6 @@
 ## FitBuddy-Backend
 
-Backend de la app móvil FitBuddy. Stack: Node.js, Express, Sequelize. Base local por defecto: SQLite.
+Backend de la app móvil FitBuddy. Stack: Node.js, Express, Sequelize. Base local: Postgresql
 
 ### Requisitos
 - Node.js 18+
@@ -66,5 +66,6 @@ server.js              # arranque del servidor
 
 ### Notas para el equipo
 - `sequelize-cli` está mapeado a `src/database` y `src/app/models` vía `.sequelizerc`.
+
 
 
