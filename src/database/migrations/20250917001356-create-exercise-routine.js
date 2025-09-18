@@ -22,6 +22,7 @@ export default {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
+      order: { type: Sequelize.INTEGER },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,

@@ -11,7 +11,8 @@ module.exports = (sequelize, DataTypes) => {
   ExerciseRoutine.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     routineId: { type: DataTypes.INTEGER, allowNull: false },
-    exerciseId: { type: DataTypes.INTEGER, allowNull: false }
+    exerciseId: { type: DataTypes.INTEGER, allowNull: false },
+    order: { type: DataTypes.INTEGER }
   }, {
     sequelize,
     modelName: 'ExerciseRoutine',

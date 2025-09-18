@@ -22,6 +22,7 @@ export default {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
+      order: { type: Sequelize.INTEGER },
       status: { type: Sequelize.STRING },
       reps: { type: Sequelize.INTEGER },
       weight: { type: Sequelize.FLOAT },
