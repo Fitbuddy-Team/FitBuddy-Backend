@@ -16,6 +16,8 @@ router.get('/exercises/musclegroup/:groupId', exerciseController.getExercisesByM
 router.get('/exercises/user/:userId', exerciseController.getExercisesByUser);
 router.post('/exercises/user/:userId', exerciseController.createExercise);
 router.patch('/exercises/:id/user/:userId', exerciseController.updateExercise);
+router.get('/exercises/warning/:exerciseId', exerciseController.cautionOnDeleteExercise);
+router.delete('/exercises/:exerciseId/user/:userId', exerciseController.deleteExercise);
 
 //Muscle Groups
 router.get('/musclegroups', muscleGroupController.getAllMuscleGroups);
