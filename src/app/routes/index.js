@@ -3,6 +3,7 @@ import { healthController } from '../controllers/health.controller.js';
 import { exerciseController } from '../controllers/exercise.controller.js';
 import { muscleGroupController } from '../controllers/musclegroups.controller.js';
 import { exercisecategoryController } from '../controllers/exercisecategory.controller.js';
+import { routineController } from '../controllers/routine.controller.js';
 const router = Router();
 
 
@@ -17,8 +18,12 @@ router.get('/exercises/musclegroup/:groupId', exerciseController.getExercisesByM
 router.get('/musclegroups', muscleGroupController.getAllMuscleGroups);
 
 // Categories
-
 router.get('/categories-exercises', exercisecategoryController.getAllCategories);
+
+// Routines
+router.post('/routines', routineController.createRoutine);
+router.get('/routines', routineController.getAllRoutines);
+router.get('/routines/:id', routineController.getRoutineById);
 
 export default router;
 
