@@ -29,31 +29,27 @@ const sequelize = new Sequelize(
 );
 
 // Inicializar modelos
-const Exercise = ExerciseModel(sequelize, DataTypes);
-const ExerciseCategory = ExerciseCategoryModel(sequelize, DataTypes);
-const ExerciseMuscleGroup = ExerciseMuscleGroupModel(sequelize, DataTypes);
-const MuscleGroup = MuscleGroupModel(sequelize, DataTypes);
-const Routine = RoutineModel(sequelize, DataTypes);
-const Session = SessionModel(sequelize, DataTypes);
-const Set = SetModel(sequelize, DataTypes);
-const User = UserModel(sequelize, DataTypes);
-const ExerciseRoutine = ExerciseRoutineModel(sequelize, DataTypes);
-const ExerciseSession = ExerciseSessionModel(sequelize, DataTypes);
+const models = {
+  Exercise: ExerciseModel(sequelize, DataTypes),
+  ExerciseCategory: ExerciseCategoryModel(sequelize, DataTypes),
+  ExerciseMuscleGroup: ExerciseMuscleGroupModel(sequelize, DataTypes),
+  MuscleGroup: MuscleGroupModel(sequelize, DataTypes),
+  Routine: RoutineModel(sequelize, DataTypes),
+  Session: SessionModel(sequelize, DataTypes),
+  Set: SetModel(sequelize, DataTypes),
+  User: UserModel(sequelize, DataTypes),
+  ExerciseRoutine: ExerciseRoutineModel(sequelize, DataTypes),
+  ExerciseSession: ExerciseSessionModel(sequelize, DataTypes),
+};
 
 // Asociaciones
-Exercise.associate?.({ ExerciseCategory, User, MuscleGroup, Routine, ExerciseMuscleGroup, ExerciseRoutine });
-ExerciseCategory.associate?.({ Exercise });
-ExerciseMuscleGroup.associate?.({ Exercise, MuscleGroup });
-MuscleGroup.associate?.({ Exercise, ExerciseMuscleGroup });
-Routine.associate?.({ User, Exercise, ExerciseRoutine });
-Session.associate?.({ User, Routine, Exercise, ExerciseSession });
-Set.associate?.({ ExerciseRoutine, ExerciseSession });
-User.associate?.({ Exercise });
-ExerciseRoutine.associate?.({ Routine, Exercise, Set });
-ExerciseSession.associate?.({ Session, Exercise, Set });
+Object.values(models).forEach(model => {
+  if (model.associate) {
+    model.associate(models);
+  }
+});
 
-export {
-  sequelize,
+export const {
   Exercise,
   ExerciseCategory,
   ExerciseMuscleGroup,
@@ -64,5 +60,6 @@ export {
   User,
   ExerciseRoutine,
   ExerciseSession
-};
+} = models;
 
+export { sequelize };
