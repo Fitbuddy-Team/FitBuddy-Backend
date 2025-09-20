@@ -5,7 +5,7 @@ export default (sequelize, DataTypes) => {
   class Session extends Model {
     static associate(models) {
       // Una sesión pertenece a un usuario
-      this.belongsTo(models.User, { foreignKey: 'userId', as: 'user' });
+      this.belongsTo(models.User, { foreignKey: 'userId', as: 'user', onDelete: 'CASCADE' });
 
       // Una sesión puede estar asociada a una rutina
       this.belongsTo(models.Routine, { foreignKey: 'routineId', as: 'routine' });
