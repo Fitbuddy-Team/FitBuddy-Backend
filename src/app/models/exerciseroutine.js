@@ -1,18 +1,19 @@
-'use strict';
-const { Model } = require('sequelize');
+import { Model } from 'sequelize';
 
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   class ExerciseRoutine extends Model {
     static associate(models) {
       this.belongsTo(models.Routine, { foreignKey: 'routineId', as: 'routine' });
       this.belongsTo(models.Exercise, { foreignKey: 'exerciseId', as: 'exercise' });
+      this.hasMany(models.Set, { foreignKey: 'exerciseRoutineId', as: 'sets' });
     }
   }
   ExerciseRoutine.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     routineId: { type: DataTypes.INTEGER, allowNull: false },
     exerciseId: { type: DataTypes.INTEGER, allowNull: false },
-    order: { type: DataTypes.INTEGER }
+    order: { type: DataTypes.INTEGER },
+    status: { type: DataTypes.STRING }
   }, {
     sequelize,
     modelName: 'ExerciseRoutine',
