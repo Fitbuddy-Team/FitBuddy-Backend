@@ -306,5 +306,46 @@ export const routineController = {
         error: error.message
       });
     }
+  },
+
+  async deleteRoutine(req, res) {
+    try {
+      const { routineId } = req.params;
+
+      // Verificar que la rutina existe
+      const routine = await Routine.findByPk(routineId);
+      if (!routine) {
+        return res.status(404).json({
+          success: false,
+          message: 'Rutina no encontrada'
+        });
+      }
+
+      // Eliminar la rutina (la base de datos maneja la eliminación en cascada)
+      // Esto eliminará automáticamente:
+      // - Todos los ExerciseRoutines asociados
+      // - Todos los Sets asociados a esos ExerciseRoutines
+      await Routine.destroy({
+        where: { id: routineId }
+      });
+
+      res.json({
+        success: true,
+        message: 'Rutina eliminada exitosamente',
+        data: {
+          id: routine.id,
+          name: routine.name,
+          description: routine.description
+        }
+      });
+
+    } catch (error) {
+      console.error('Error deleting routine:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
   }
 };
