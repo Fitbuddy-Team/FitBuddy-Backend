@@ -1,4 +1,4 @@
-import { Routine, Exercise, ExerciseRoutine, Set } from '../models/index.js';
+import { Routine, Exercise, ExerciseRoutine, Set, Session } from '../models/index.js';
 
 export const routineController = {
   async createRoutine(req, res) {
@@ -149,50 +149,6 @@ export const routineController = {
     }
   },
 
-  async getAllRoutines(req, res) {
-    try {
-      const { userId } = req.query;
-
-      let whereClause = {};
-      if (userId) {
-        whereClause.userId = userId;
-      }
-
-      const routines = await Routine.findAll({
-        where: whereClause,
-        include: [
-          {
-            model: Exercise,
-            as: 'exercises',
-            through: {
-              model: ExerciseRoutine,
-              as: 'exerciseRoutine',
-              include: [
-                {
-                  model: Set,
-                  as: 'sets'
-                }
-              ]
-            }
-          }
-        ],
-        order: [['createdAt', 'DESC']]
-      });
-
-      res.json({
-        success: true,
-        data: routines
-      });
-
-    } catch (error) {
-      console.error('Error getting routines:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error interno del servidor',
-        error: error.message
-      });
-    }
-  },
 
   async getRoutineById(req, res) {
     try {
@@ -231,6 +187,63 @@ export const routineController = {
 
     } catch (error) {
       console.error('Error getting routine:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+
+  async getAllRoutines(req, res) {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Se requiere userId como parámetro'
+        });
+      }
+
+      const whereClause = { userId };
+
+      // Obtener todas las rutinas
+      const routines = await Routine.findAll({
+        where: whereClause,
+        order: [['createdAt', 'DESC']]
+      });
+
+      // Para cada rutina, buscar la última sesión que la usó
+      const routinesWithLastTrained = await Promise.all(
+        routines.map(async (routine) => {
+          // Buscar la última sesión que usó esta rutina
+          const lastSession = await Session.findOne({
+            where: { 
+              routineId: routine.id 
+            },
+            order: [['date', 'DESC']],
+            attributes: ['date']
+          });
+
+          return {
+            id: routine.id,
+            name: routine.name,
+            description: routine.description,
+            lastTimeTrained: lastSession ? lastSession.date : null,
+            createdAt: routine.createdAt,
+            updatedAt: routine.updatedAt
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: routinesWithLastTrained
+      });
+
+    } catch (error) {
+      console.error('Error getting routines with last trained:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',
