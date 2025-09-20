@@ -1,5 +1,6 @@
 import { Exercise } from '../models/index.js';
 import { MuscleGroup } from '../models/index.js';
+import { User } from '../models/index.js';
 
 export const exerciseController = {
     getAllExercises: (req, res) => {
@@ -18,6 +19,19 @@ export const exerciseController = {
           }
           res.json(exercise);
         })
+        .catch(err => res.status(500).json({ error: err.message }));
+    },
+
+    getExercisesByUser: (req, res) => {
+      const { userId } = req.params;
+      User.findByPk(userId)
+        .then(user => {
+          if (!user) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+          }
+          return Exercise.findAll({ where: { userId } });
+        })
+        .then(exercises => res.json({ exercises }))
         .catch(err => res.status(500).json({ error: err.message }));
     },
 
