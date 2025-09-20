@@ -24,6 +24,7 @@ router.get('/categories-exercises', exercisecategoryController.getAllCategories)
 router.post('/routines', routineController.createRoutine);
 router.get('/routines/all/:userId', routineController.getAllRoutines);
 router.get('/routines/:routineId', routineController.getRoutineById);
+router.put('/routines/:routineId', routineController.updateRoutine);
 router.delete('/routines/:routineId', routineController.deleteRoutine);
 
 export default router;
