@@ -22,18 +22,22 @@ export const exerciseController = {
         .catch(err => res.status(500).json({ error: err.message }));
     },
 
-    getExercisesByUser: (req, res) => {
-      const { userId } = req.params;
-      User.findByPk(userId)
-        .then(user => {
+    getExercisesByUser: async (req, res) => {
+        try {
+          const { userId } = req.params;
+        
+          const user = await User.findByPk(userId);
           if (!user) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
           }
-          return Exercise.findAll({ where: { userId } });
-        })
-        .then(exercises => res.json({ exercises }))
-        .catch(err => res.status(500).json({ error: err.message }));
+      
+          const exercises = await Exercise.findAll({ where: { userId } });
+          return res.json({ exercises });
+        } catch (err) {
+          return res.status(500).json({ error: err.message });
+        }
     },
+
 
     getExercisesByCategory: (req, res) => {
       const { catId } = req.params;
