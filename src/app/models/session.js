@@ -1,7 +1,7 @@
-'use strict';
-const { Model } = require('sequelize');
 
-module.exports = (sequelize, DataTypes) => {
+import { Model } from 'sequelize';
+
+export default (sequelize, DataTypes) => {
   class Session extends Model {
     static associate(models) {
       // Una sesión pertenece a un usuario

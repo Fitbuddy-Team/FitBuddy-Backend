@@ -1,7 +1,7 @@
-'use strict';
-const { Model } = require('sequelize');
 
-module.exports = (sequelize, DataTypes) => {
+import { Model } from 'sequelize';
+
+export default (sequelize, DataTypes) => {
   class User extends Model {
     static associate(models) {
       this.hasMany(models.Exercise, { foreignKey: 'userId', as: 'exercises' });
@@ -19,17 +19,16 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'User',
     tableName: 'Users',
     timestamps: true,
-     validate: {
-    eitherRoutineOrSession() {
-      if (!this.exerciseRoutineId && !this.exerciseSessionId) {
-        throw new Error('Un Set debe pertenecer a ExerciseRoutine o ExerciseSession');
-      }
-      if (this.exerciseRoutineId && this.exerciseSessionId) {
-        throw new Error('Un Set no puede pertenecer a ambos ExerciseRoutine y ExerciseSession');
+    validate: {
+      eitherRoutineOrSession() {
+        if (!this.exerciseRoutineId && !this.exerciseSessionId) {
+          throw new Error('Un Set debe pertenecer a ExerciseRoutine o ExerciseSession');
+        }
+        if (this.exerciseRoutineId && this.exerciseSessionId) {
+          throw new Error('Un Set no puede pertenecer a ambos ExerciseRoutine y ExerciseSession');
+        }
       }
     }
-  }
   });
-  
   return User;
 };
