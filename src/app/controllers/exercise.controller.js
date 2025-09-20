@@ -64,16 +64,21 @@ export const exerciseController = {
 
     async createExercise(req, res) {
       try {
-        const { userId, muscleGroupIds = [], ...exerciseData } = req.body;
+        const { userId } = req.params;
+        const { muscleGroupIds = [], ...exerciseData } = req.body;
 
         // Validaciones
         if (!userId) {
           return res.status(400).json({ error: 'userId es requerido' });
         }
+        const user = await User.findByPk(userId);
+        if (!user) {
+          return res.status(404).json({ error: 'El usuario no existe' });
+        }
         if (!Array.isArray(muscleGroupIds) || muscleGroupIds.length === 0) {
           return res.status(400).json({ error: 'Debe vincularse al menos a un grupo muscular (muscleGroupIds)' });
         }
-
+        
         const newExercise = await Exercise.create({
           ...exerciseData,
           userId,
