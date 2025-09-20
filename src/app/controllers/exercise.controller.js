@@ -91,12 +91,11 @@ export const exerciseController = {
         res.status(500).json({ error: err.message });
       }
     },
-    // una función que sea un patch de un ejercicio creado por un usuario
     async updateExercise(req, res) {
       try {
-        const { id } = req.params;
-        const { userId, muscleGroupIds, ...exerciseData } = req.body;
-
+        const { id, userId } = req.params;
+        const { muscleGroupIds, ...exerciseData } = req.body;
+    
         const exercise = await Exercise.findByPk(id);
         if (!exercise) {
           return res.status(404).json({ error: 'Ejercicio no encontrado' });
@@ -104,20 +103,20 @@ export const exerciseController = {
         if (!exercise.userMade) {
           return res.status(403).json({ error: 'No se puede modificar un ejercicio predeterminado' });
         }
-        if (!userId || exercise.userId !== userId) {
+        if (exercise.userId !== Number(userId)) {
           return res.status(403).json({ error: 'No tienes permiso para modificar este ejercicio' });
         }
-
+    
         await exercise.update(exerciseData);
-
+    
         if (Array.isArray(muscleGroupIds)) {
           await exercise.setMuscles(muscleGroupIds);
         }
-
+    
         const updatedExercise = await Exercise.findByPk(id, {
           include: [{ model: MuscleGroup, as: 'muscles', through: { attributes: [] } }]
         });
-
+    
         res.json(updatedExercise);
       } catch (err) {
         res.status(500).json({ error: err.message });

@@ -15,6 +15,7 @@ router.get('/exercises/category/:catId', exerciseController.getExercisesByCatego
 router.get('/exercises/musclegroup/:groupId', exerciseController.getExercisesByMuscleGroup);
 router.get('/exercises/user/:userId', exerciseController.getExercisesByUser);
 router.post('/exercises', exerciseController.createExercise);
+router.patch('/exercises/:id/user/:userId', exerciseController.updateExercise);
 
 //Muscle Groups
 router.get('/musclegroups', muscleGroupController.getAllMuscleGroups);
