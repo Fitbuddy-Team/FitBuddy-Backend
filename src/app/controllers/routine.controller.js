@@ -152,9 +152,9 @@ export const routineController = {
 
   async getRoutineById(req, res) {
     try {
-      const { id } = req.params;
+      const { routineId } = req.params;
 
-      const routine = await Routine.findByPk(id, {
+      const routine = await Routine.findByPk(routineId, {
         include: [
           {
             model: Exercise,
@@ -165,11 +165,17 @@ export const routineController = {
               include: [
                 {
                   model: Set,
-                  as: 'sets'
+                  as: 'sets',
+                  order: [['order', 'ASC']]
                 }
-              ]
+              ],
+              order: [['order', 'ASC']]
             }
           }
+        ],
+        order: [
+          [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, 'order', 'ASC'],
+          [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, { model: Set, as: 'sets' }, 'order', 'ASC']
         ]
       });
 
@@ -180,9 +186,59 @@ export const routineController = {
         });
       }
 
+      // Ordenar manualmente los ejercicios y sets por order
+      const sortedExercises = routine.exercises
+        .map(exercise => {
+          const exerciseRoutine = exercise.exerciseRoutine;
+          const sortedSets = exerciseRoutine.sets
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+          return {
+            id: exercise.id,
+            name: exercise.name,
+            userMade: exercise.userMade,
+            categoryId: exercise.categoryId,
+            userId: exercise.userId,
+            createdAt: exercise.createdAt,
+            updatedAt: exercise.updatedAt,
+            exerciseRoutine: {
+              id: exerciseRoutine.id,
+              routineId: exerciseRoutine.routineId,
+              exerciseId: exerciseRoutine.exerciseId,
+              order: exerciseRoutine.order,
+              status: exerciseRoutine.status,
+              createdAt: exerciseRoutine.createdAt,
+              updatedAt: exerciseRoutine.updatedAt,
+              sets: sortedSets.map(set => ({
+                id: set.id,
+                exerciseRoutineId: set.exerciseRoutineId,
+                exerciseSessionId: set.exerciseSessionId,
+                order: set.order,
+                status: set.status,
+                reps: set.reps,
+                weight: set.weight,
+                restTime: set.restTime,
+                createdAt: set.createdAt,
+                updatedAt: set.updatedAt
+              }))
+            }
+          };
+        })
+        .sort((a, b) => (a.exerciseRoutine.order || 0) - (b.exerciseRoutine.order || 0));
+
+      const responseData = {
+        id: routine.id,
+        userId: routine.userId,
+        name: routine.name,
+        description: routine.description,
+        createdAt: routine.createdAt,
+        updatedAt: routine.updatedAt,
+        exercises: sortedExercises
+      };
+
       res.json({
         success: true,
-        data: routine
+        data: responseData
       });
 
     } catch (error) {

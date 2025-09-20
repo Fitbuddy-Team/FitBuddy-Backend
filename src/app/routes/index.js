@@ -23,7 +23,7 @@ router.get('/categories-exercises', exercisecategoryController.getAllCategories)
 // Routines
 router.post('/routines', routineController.createRoutine);
 router.get('/routines/all/:userId', routineController.getAllRoutines);
-router.get('/routines/:id', routineController.getRoutineById);
+router.get('/routines/:routineId', routineController.getRoutineById);
 
 export default router;
 
