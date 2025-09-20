@@ -1,6 +1,6 @@
 import axios from 'axios';
 import jwt from "jsonwebtoken";
-import { User, Routine, Exercise, ExerciseRoutine, ExerciseCategory } from '../models/index.js';
+import { User } from '../models/index.js';
 
 export const userController = {
   register: async (req, res) => {
