@@ -30,7 +30,17 @@ export default (sequelize, DataTypes) => {
     sequelize,
     modelName: 'Set',
     tableName: 'Sets',
-    timestamps: true
+    timestamps: true,
+    validate: {
+      eitherRoutineOrSession() {
+        if (!this.exerciseRoutineId && !this.exerciseSessionId) {
+          throw new Error('Un Set debe pertenecer a ExerciseRoutine o ExerciseSession');
+        }
+        if (this.exerciseRoutineId && this.exerciseSessionId) {
+          throw new Error('Un Set no puede pertenecer a ambos ExerciseRoutine y ExerciseSession');
+        }
+      }
+    }
   });
   return Set;
 };

@@ -4,31 +4,39 @@ import { Model } from 'sequelize';
 export default (sequelize, DataTypes) => {
   class User extends Model {
     static associate(models) {
-      this.hasMany(models.Exercise, { foreignKey: 'userId', as: 'exercises' });
+      // Un usuario tiene muchas rutinas, sesiones y ejercicios
+      this.hasMany(models.Routine, { 
+        foreignKey: 'userId', 
+        as: 'routines', 
+        onDelete: 'CASCADE', 
+        hooks: true 
+      });
+      this.hasMany(models.Session, { 
+        foreignKey: 'userId', 
+        as: 'sessions', 
+        onDelete: 'CASCADE', 
+        hooks: true 
+      });
+      this.hasMany(models.Exercise, { 
+        foreignKey: 'userId', 
+        as: 'exercises', 
+        onDelete: 'SET NULL',
+        hooks: true 
+      });
     }
   }
   User.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     name: DataTypes.STRING,
     email: DataTypes.STRING,
-    password: DataTypes.STRING,
     weight: DataTypes.FLOAT,
-    height: DataTypes.FLOAT
+    height: DataTypes.FLOAT,
+    auth0_id: { type: DataTypes.STRING, allowNull: false, unique: true } 
   }, {
     sequelize,
     modelName: 'User',
     tableName: 'Users',
-    timestamps: true,
-    validate: {
-      eitherRoutineOrSession() {
-        if (!this.exerciseRoutineId && !this.exerciseSessionId) {
-          throw new Error('Un Set debe pertenecer a ExerciseRoutine o ExerciseSession');
-        }
-        if (this.exerciseRoutineId && this.exerciseSessionId) {
-          throw new Error('Un Set no puede pertenecer a ambos ExerciseRoutine y ExerciseSession');
-        }
-      }
-    }
+    timestamps: true
   });
   return User;
 };
