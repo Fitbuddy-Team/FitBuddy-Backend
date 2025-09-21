@@ -516,5 +516,81 @@ export const sessionController = {
         error: error.message
       });
     }
+  },
+
+  // Eliminar una sesión y todos sus registros relacionados
+  deleteSession: async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+
+      // Validaciones básicas
+      if (!sessionId || isNaN(sessionId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de sesión inválido'
+        });
+      }
+
+      // Verificar que la sesión existe
+      const existingSession = await Session.findByPk(sessionId);
+      if (!existingSession) {
+        return res.status(404).json({
+          success: false,
+          message: 'Sesión no encontrada'
+        });
+      }
+
+      // Iniciar transacción para asegurar consistencia
+      const transaction = await sequelize.transaction();
+
+      try {
+        // Obtener todos los ExerciseSessions de esta sesión
+        const exerciseSessions = await ExerciseSession.findAll({
+          where: { sessionId: sessionId },
+          transaction
+        });
+
+        // Para cada ExerciseSession, eliminar sus Sets
+        for (const exerciseSession of exerciseSessions) {
+          await Set.destroy({
+            where: { exerciseSessionId: exerciseSession.id },
+            transaction
+          });
+        }
+
+        // Eliminar todos los ExerciseSessions de la sesión
+        await ExerciseSession.destroy({
+          where: { sessionId: sessionId },
+          transaction
+        });
+
+        // Finalmente, eliminar la sesión
+        await Session.destroy({
+          where: { id: sessionId },
+          transaction
+        });
+
+        // Confirmar transacción
+        await transaction.commit();
+
+        res.status(200).json({
+          success: true,
+          message: 'Sesión eliminada exitosamente junto con todos sus ejercicios y sets'
+        });
+
+      } catch (error) {
+        // Si hay error, hacer rollback de la transacción
+        await transaction.rollback();
+        throw error;
+      }
+
+    } catch (error) {
+      console.error('Error al eliminar sesión:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
   }
 };
