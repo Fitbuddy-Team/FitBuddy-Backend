@@ -4,6 +4,7 @@ import { exerciseController } from '../controllers/exercise.controller.js';
 import { muscleGroupController } from '../controllers/musclegroups.controller.js';
 import { exercisecategoryController } from '../controllers/exercisecategory.controller.js';
 import { routineController } from '../controllers/routine.controller.js';
+import { sessionController } from '../controllers/session.controller.js';
 const router = Router();
 
 
@@ -26,6 +27,11 @@ router.get('/routines/all/:userId', routineController.getAllRoutines);
 router.get('/routines/:routineId', routineController.getRoutineById);
 router.put('/routines/:routineId', routineController.updateRoutine);
 router.delete('/routines/:routineId', routineController.deleteRoutine);
+
+// Sessions
+router.post('/sessions', sessionController.createSession);
+router.get('/sessions/all/:userId', sessionController.getAllSessions);
+router.get('/sessions/:sessionId', sessionController.getSessionById);
 
 export default router;
 

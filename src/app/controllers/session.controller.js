@@ -1,0 +1,369 @@
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set, Exercise, sequelize } from '../models/index.js';
+
+export const sessionController = {
+  // Obtener todas las sesiones de un usuario
+  getAllSessions: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Validar que userId sea un número
+      if (!userId || isNaN(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de usuario inválido'
+        });
+      }
+
+      // Buscar todas las sesiones del usuario con información de la rutina
+      const sessions = await Session.findAll({
+        where: {
+          userId: parseInt(userId)
+        },
+        include: [
+          {
+            model: Routine,
+            as: 'routine',
+            attributes: ['id', 'name', 'description'], // Solo incluir los atributos necesarios
+            required: false // LEFT JOIN para incluir sesiones sin rutina
+          }
+        ],
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt'],
+        order: [['date', 'DESC']] // Ordenar por fecha más reciente primero
+      });
+
+      // Formatear la respuesta
+      const formattedSessions = sessions.map(session => {
+        const sessionData = {
+          id: session.id,
+          userId: session.userId,
+          routineId: session.routineId,
+          date: session.date,
+          duration: session.duration,
+          status: session.status,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt
+        };
+
+        // Si la sesión tiene una rutina asociada, incluir su información
+        if (session.routine) {
+          sessionData.routine = {
+            id: session.routine.id,
+            name: session.routine.name,
+            description: session.routine.description
+          };
+        }
+
+        return sessionData;
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Sesiones obtenidas exitosamente',
+        data: formattedSessions,
+        count: formattedSessions.length
+      });
+
+    } catch (error) {
+      console.error('Error al obtener sesiones:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+
+  // Crear una nueva sesión de entrenamiento
+  // changeRoutine por defecto es false, solo actualiza la rutina si se especifica explícitamente true
+  createSession: async (req, res) => {
+    try {
+      const { 
+        userId, 
+        routineId, 
+        duration, 
+        status, 
+        changeRoutine, 
+        exercises 
+      } = req.body;
+
+      // Validaciones básicas
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'El userId es requerido'
+        });
+      }
+
+      if (!exercises || !Array.isArray(exercises)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Se requiere un array de exercises'
+        });
+      }
+
+      // Verificar que el usuario existe (opcional, pero recomendado)
+      const userExists = await sequelize.models.User.findByPk(userId);
+      if (!userExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'El usuario especificado no existe'
+        });
+      }
+
+      // Validar que todos los ejercicios existan
+      const exerciseIds = exercises.map(ex => ex.exerciseId);
+      const existingExercises = await Exercise.findAll({
+        where: { id: exerciseIds }
+      });
+
+      if (existingExercises.length !== exerciseIds.length) {
+        const foundIds = existingExercises.map(ex => ex.id);
+        const missingIds = exerciseIds.filter(id => !foundIds.includes(id));
+        return res.status(400).json({
+          success: false,
+          message: `Los siguientes ejercicios no existen: ${missingIds.join(', ')}`
+        });
+      }
+
+      // Iniciar transacción para asegurar consistencia
+      const transaction = await sequelize.transaction();
+
+      try {
+        // Crear la sesión
+        const session = await Session.create({
+          userId: parseInt(userId),
+          routineId: routineId ? parseInt(routineId) : null,
+          date: new Date(),
+          duration: duration || null,
+          status: status || 'completed'
+        }, { transaction });
+
+        // Crear los ExerciseSession y sus Sets
+        for (let i = 0; i < exercises.length; i++) {
+          const exerciseData = exercises[i];
+          
+          // Crear ExerciseSession
+          const exerciseSession = await ExerciseSession.create({
+            sessionId: session.id,
+            exerciseId: exerciseData.exerciseId,
+            order: exerciseData.order || (i + 1)
+          }, { transaction });
+
+          // Crear los Sets para este ExerciseSession
+          if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
+            for (let j = 0; j < exerciseData.sets.length; j++) {
+              const setData = exerciseData.sets[j];
+              await Set.create({
+                exerciseSessionId: exerciseSession.id,
+                order: setData.order || (j + 1),
+                status: setData.status || 'completed',
+                reps: setData.reps || null,
+                weight: setData.weight || null,
+                restTime: setData.restTime || null
+              }, { transaction });
+            }
+          }
+        }
+
+        // Si changeRoutine es true y hay una rutina asociada, actualizar la rutina
+        // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
+        if (changeRoutine === true && routineId) {
+          // Verificar que la rutina existe
+          const existingRoutine = await Routine.findByPk(routineId, { transaction });
+          if (!existingRoutine) {
+            await transaction.rollback();
+            return res.status(404).json({
+              success: false,
+              message: 'La rutina especificada no existe'
+            });
+          }
+
+          // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
+          await ExerciseRoutine.destroy({
+            where: { routineId: routineId },
+            transaction
+          });
+
+          // Crear los nuevos ExerciseRoutine y sus Sets basados en los ejercicios de la sesión
+          for (let i = 0; i < exercises.length; i++) {
+            const exerciseData = exercises[i];
+            
+            // Crear ExerciseRoutine
+            const exerciseRoutine = await ExerciseRoutine.create({
+              routineId: routineId,
+              exerciseId: exerciseData.exerciseId,
+              order: exerciseData.order || (i + 1),
+              status: exerciseData.status || 'active'
+            }, { transaction });
+
+            // Crear los Sets para este ExerciseRoutine
+            if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
+              for (let j = 0; j < exerciseData.sets.length; j++) {
+                const setData = exerciseData.sets[j];
+                await Set.create({
+                  exerciseRoutineId: exerciseRoutine.id,
+                  order: setData.order || (j + 1),
+                  status: setData.status || 'pending',
+                  reps: setData.reps || null,
+                  weight: setData.weight || null,
+                  restTime: setData.restTime || null
+                }, { transaction });
+              }
+            }
+          }
+        }
+
+        // Confirmar transacción
+        await transaction.commit();
+
+        // Obtener la sesión creada con toda su información
+        const createdSession = await Session.findByPk(session.id, {
+          include: [
+            {
+              model: Routine,
+              as: 'routine',
+              attributes: ['id', 'name', 'description'],
+              required: false
+            },
+            {
+              model: Exercise,
+              as: 'exercises',
+              through: {
+                model: ExerciseSession,
+                as: 'exerciseSession',
+                include: [
+                  {
+                    model: Set,
+                    as: 'sets',
+                    attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+                  }
+                ]
+              },
+              attributes: ['id', 'name', 'description']
+            }
+          ]
+        });
+
+        res.status(201).json({
+          success: true,
+          message: 'Sesión creada exitosamente',
+          data: createdSession
+        });
+
+      } catch (error) {
+        // Si hay error, hacer rollback de la transacción
+        await transaction.rollback();
+        throw error;
+      }
+
+    } catch (error) {
+      console.error('Error al crear sesión:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+
+  // Obtener una sesión específica por ID
+  getSessionById: async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+
+      // Validar que sessionId sea un número
+      if (!sessionId || isNaN(sessionId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de sesión inválido'
+        });
+      }
+
+      // Buscar la sesión con toda su información relacionada
+      const session = await Session.findByPk(parseInt(sessionId), {
+        include: [
+          {
+            model: Routine,
+            as: 'routine',
+            attributes: ['id', 'name', 'description'],
+            required: false
+          },
+          {
+            model: Exercise,
+            as: 'exercises',
+            through: {
+              model: ExerciseSession,
+              as: 'exerciseSession',
+              include: [
+                {
+                  model: Set,
+                  as: 'sets',
+                  attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime', 'createdAt', 'updatedAt']
+                }
+              ]
+            },
+            attributes: ['id', 'name', 'description', 'muscleGroup', 'equipment']
+          }
+        ],
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt']
+      });
+
+      // Verificar si la sesión existe
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          message: 'Sesión no encontrada'
+        });
+      }
+
+      // Formatear la respuesta
+      const formattedSession = {
+        id: session.id,
+        userId: session.userId,
+        routineId: session.routineId,
+        date: session.date,
+        duration: session.duration,
+        status: session.status,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        routine: session.routine ? {
+          id: session.routine.id,
+          name: session.routine.name,
+          description: session.routine.description
+        } : null,
+        exercises: session.exercises.map(exercise => ({
+          id: exercise.id,
+          name: exercise.name,
+          description: exercise.description,
+          muscleGroup: exercise.muscleGroup,
+          equipment: exercise.equipment,
+          order: exercise.exerciseSession.order,
+          sets: exercise.exerciseSession.sets.map(set => ({
+            id: set.id,
+            order: set.order,
+            status: set.status,
+            reps: set.reps,
+            weight: set.weight,
+            restTime: set.restTime,
+            createdAt: set.createdAt,
+            updatedAt: set.updatedAt
+          }))
+        }))
+      };
+
+      res.status(200).json({
+        success: true,
+        message: 'Sesión obtenida exitosamente',
+        data: formattedSession
+      });
+
+    } catch (error) {
+      console.error('Error al obtener sesión:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  }
+};
