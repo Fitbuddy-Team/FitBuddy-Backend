@@ -3,7 +3,11 @@
 Backend de la app móvil FitBuddy. Stack: Node.js, Express, Sequelize. Base local por defecto: SQLite.
 
 ### Requisitos
-- Node.js 18+
+- Node.js 20+
+```bash
+nvm use XX
+```
+con XX la versión de node que quieran usar. Recomendamos 23 para no tener problemas
 
 ### Instalación
 ```bash
@@ -66,5 +70,6 @@ server.js              # arranque del servidor
 
 ### Notas para el equipo
 - `sequelize-cli` está mapeado a `src/database` y `src/app/models` vía `.sequelizerc`.
+
 
 
