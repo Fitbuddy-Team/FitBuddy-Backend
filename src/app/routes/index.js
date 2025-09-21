@@ -21,8 +21,12 @@ router.delete('/users/:userId', userController.deleteUser);
 
 // Exercises
 router.get('/exercises', exerciseController.getAllExercises);
+router.get('/exercises/:id', exerciseController.getExercise);
 router.get('/exercises/category/:catId', exerciseController.getExercisesByCategory);
 router.get('/exercises/musclegroup/:groupId', exerciseController.getExercisesByMuscleGroup);
+router.get('/exercises/user/:userId', exerciseController.getExercisesByUser);
+router.post('/exercises/user/:userId', exerciseController.createExercise);
+router.patch('/exercises/:id/user/:userId', exerciseController.updateExercise);
 
 //Muscle Groups
 router.get('/musclegroups', muscleGroupController.getAllMuscleGroups);
