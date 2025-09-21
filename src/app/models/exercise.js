@@ -5,7 +5,7 @@ export default (sequelize, DataTypes) => {
   class Exercise extends Model {
     static associate(models) {
       this.belongsTo(models.ExerciseCategory, { foreignKey: 'categoryId', as: 'category' });
-      this.belongsTo(models.User, { foreignKey: 'userId', as: 'user' });
+      this.belongsTo(models.User, { foreignKey: 'userId', as: 'user', onDelete: 'CASCADE' });
       this.belongsToMany(models.MuscleGroup, {
         through: models.ExerciseMuscleGroup,
         foreignKey: 'exerciseId',
