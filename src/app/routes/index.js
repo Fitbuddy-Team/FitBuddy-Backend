@@ -30,6 +30,7 @@ router.delete('/routines/:routineId', routineController.deleteRoutine);
 
 // Sessions
 router.post('/sessions', sessionController.createSession);
+router.put('/sessions/:sessionId', sessionController.updateSession);
 router.get('/sessions/all/:userId', sessionController.getAllSessions);
 router.get('/sessions/:sessionId', sessionController.getSessionById);
 

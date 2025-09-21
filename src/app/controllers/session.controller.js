@@ -365,5 +365,156 @@ export const sessionController = {
         error: error.message
       });
     }
+  },
+
+  // Actualizar una sesión existente
+  updateSession: async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const { 
+        duration, 
+        status, 
+        exercises 
+      } = req.body;
+
+      // Validaciones básicas
+      if (!sessionId || isNaN(sessionId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de sesión inválido'
+        });
+      }
+
+      if (!exercises || !Array.isArray(exercises)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Se requiere un array de exercises'
+        });
+      }
+
+      // Verificar que la sesión existe
+      const existingSession = await Session.findByPk(sessionId);
+      if (!existingSession) {
+        return res.status(404).json({
+          success: false,
+          message: 'Sesión no encontrada'
+        });
+      }
+
+      // Validar que todos los ejercicios existan
+      const exerciseIds = exercises.map(ex => ex.exerciseId);
+      const existingExercises = await Exercise.findAll({
+        where: { id: exerciseIds }
+      });
+
+      if (existingExercises.length !== exerciseIds.length) {
+        const foundIds = existingExercises.map(ex => ex.id);
+        const missingIds = exerciseIds.filter(id => !foundIds.includes(id));
+        return res.status(400).json({
+          success: false,
+          message: `Los siguientes ejercicios no existen: ${missingIds.join(', ')}`
+        });
+      }
+
+      // Iniciar transacción para asegurar consistencia
+      const transaction = await sequelize.transaction();
+
+      try {
+        // Actualizar información básica de la sesión (NO incluir routineId)
+        await Session.update(
+          {
+            duration: duration || null,
+            status: status || existingSession.status
+          },
+          {
+            where: { id: sessionId },
+            transaction
+          }
+        );
+
+        // Eliminar todos los ExerciseSessions existentes (esto eliminará automáticamente los Sets)
+        await ExerciseSession.destroy({
+          where: { sessionId: sessionId },
+          transaction
+        });
+
+        // Crear los nuevos ExerciseSession y sus Sets
+        for (let i = 0; i < exercises.length; i++) {
+          const exerciseData = exercises[i];
+          
+          // Crear ExerciseSession
+          const exerciseSession = await ExerciseSession.create({
+            sessionId: sessionId,
+            exerciseId: exerciseData.exerciseId,
+            order: exerciseData.order || (i + 1)
+          }, { transaction });
+
+          // Crear los Sets para este ExerciseSession
+          if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
+            for (let j = 0; j < exerciseData.sets.length; j++) {
+              const setData = exerciseData.sets[j];
+              await Set.create({
+                exerciseSessionId: exerciseSession.id,
+                order: setData.order || (j + 1),
+                status: setData.status || 'completed',
+                reps: setData.reps || null,
+                weight: setData.weight || null,
+                restTime: setData.restTime || null
+              }, { transaction });
+            }
+          }
+        }
+
+        // Confirmar transacción
+        await transaction.commit();
+
+        // Obtener la sesión actualizada con toda su información
+        const updatedSession = await Session.findByPk(sessionId, {
+          include: [
+            {
+              model: Routine,
+              as: 'routine',
+              attributes: ['id', 'name', 'description'],
+              required: false
+            },
+            {
+              model: Exercise,
+              as: 'exercises',
+              through: {
+                model: ExerciseSession,
+                as: 'exerciseSession',
+                include: [
+                  {
+                    model: Set,
+                    as: 'sets',
+                    attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+                  }
+                ]
+              },
+              attributes: ['id', 'name', 'description']
+            }
+          ]
+        });
+
+        res.status(200).json({
+          success: true,
+          message: 'Sesión actualizada exitosamente',
+          data: updatedSession
+        });
+
+      } catch (error) {
+        // Si hay error, hacer rollback de la transacción
+        await transaction.rollback();
+        throw error;
+      }
+
+    } catch (error) {
+      console.error('Error al actualizar sesión:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
   }
 };
