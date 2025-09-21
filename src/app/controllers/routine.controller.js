@@ -1,4 +1,4 @@
-import { Routine, Exercise, ExerciseRoutine, Set, Session, sequelize } from '../models/index.js';
+import { Routine, Exercise, ExerciseRoutine, Set, Session, ExerciseSession, sequelize } from '../models/index.js';
 
 export const routineController = {
   async createRoutine(req, res) {
@@ -186,6 +186,52 @@ export const routineController = {
         });
       }
 
+      // Obtener datos "previous" para cada ejercicio
+      const exerciseIds = routine.exercises.map(ex => ex.id);
+      const previousData = await Promise.all(
+        exerciseIds.map(async (exerciseId) => {
+          // Buscar la última ExerciseSession para este ejercicio
+          const lastExerciseSession = await ExerciseSession.findOne({
+            where: { exerciseId },
+            include: [
+              {
+                model: Session,
+                as: 'session',
+                order: [['date', 'DESC']]
+              }
+            ],
+            order: [
+              [{ model: Session, as: 'session' }, 'date', 'DESC']
+            ]
+          });
+
+          if (!lastExerciseSession) {
+            return { exerciseId, previous: [] };
+          }
+
+          // Obtener los sets de la última ExerciseSession
+          const previousSets = await Set.findAll({
+            where: { exerciseSessionId: lastExerciseSession.id },
+            order: [['order', 'ASC']]
+          });
+
+          return {
+            exerciseId,
+            previous: previousSets.map(set => ({
+              weight: set.weight,
+              reps: set.reps,
+              restTime: set.restTime
+            }))
+          };
+        })
+      );
+
+      // Crear un mapa para acceso rápido a los datos previous
+      const previousMap = {};
+      previousData.forEach(data => {
+        previousMap[data.exerciseId] = data.previous;
+      });
+
       // Ordenar manualmente los ejercicios y sets por order
       const sortedExercises = routine.exercises
         .map(exercise => {
@@ -201,6 +247,7 @@ export const routineController = {
             userId: exercise.userId,
             createdAt: exercise.createdAt,
             updatedAt: exercise.updatedAt,
+            previous: previousMap[exercise.id] || [],
             exerciseRoutine: {
               id: exerciseRoutine.id,
               routineId: exerciseRoutine.routineId,
