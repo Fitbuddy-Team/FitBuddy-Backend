@@ -288,7 +288,7 @@ module.exports = {
         routines.push({
           id: routineId,
           userId: user.id,
-          name: `${template.name} - ${user.name}`,
+          name: `${template.name}`,
           description: template.description,
           createdAt: new Date(),
           updatedAt: new Date()
