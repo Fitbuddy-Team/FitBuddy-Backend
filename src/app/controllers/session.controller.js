@@ -134,12 +134,12 @@ export const sessionController = {
         });
       }
 
-      // Verificar que el usuario existe (opcional, pero recomendado)
-      const userExists = await sequelize.models.User.findByPk(userId);
-      if (!userExists) {
-        return res.status(400).json({
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
           success: false,
-          message: 'El usuario especificado no existe'
+          message: 'Usuario no encontrado'
         });
       }
 
@@ -196,7 +196,14 @@ export const sessionController = {
 
       // Si changeRoutine es true y hay una rutina asociada, actualizar la rutina
       // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
-      if (changeRoutine === true && routineId) {
+      if (changeRoutine === true) {
+        if (!routineId) {
+          return res.status(404).json({
+            success: false,
+            message: 'No se puede actualizar la rutina: no hay rutina asociada a esta sesión'
+          });
+        }
+
         // Verificar que la rutina existe
         const existingRoutine = await Routine.findByPk(routineId);
         if (!existingRoutine) {
@@ -206,12 +213,48 @@ export const sessionController = {
           });
         }
 
-        // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los SetModels)
+        // Validar que todos los ejercicios tengan exerciseId
+        for (const exerciseData of exercises) {
+          if (!exerciseData.exerciseId) {
+            return res.status(400).json({
+              success: false,
+              message: 'Todos los ejercicios deben tener un exerciseId válido para actualizar la rutina'
+            });
+          }
+        }
+
+        // Validar que todos los exerciseId existen
+        const exerciseIds = exercises.map(ex => ex.exerciseId);
+        const existingExercises = await Exercise.findAll({
+          where: { id: exerciseIds }
+        });
+
+        if (existingExercises.length !== exerciseIds.length) {
+          const foundIds = existingExercises.map(ex => ex.id);
+          const missingIds = exerciseIds.filter(id => !foundIds.includes(id));
+          return res.status(400).json({
+            success: false,
+            message: `Los siguientes ejercicios no existen: ${missingIds.join(', ')}`
+          });
+        }
+
+        // Actualizar información básica de la rutina (manteniendo el mismo userId)
+        await Routine.update(
+          {
+            name: existingRoutine.name, // Mantener el nombre original
+            description: existingRoutine.description // Mantener la descripción original
+          },
+          {
+            where: { id: routineId }
+          }
+        );
+
+        // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
         await ExerciseRoutine.destroy({
           where: { routineId: routineId }
         });
 
-        // Crear los nuevos ExerciseRoutine y sus SetModels basados en los ejercicios de la sesión
+        // Crear los nuevos ExerciseRoutine y sus Sets
         for (let i = 0; i < exercises.length; i++) {
           const exerciseData = exercises[i];
           
@@ -222,7 +265,7 @@ export const sessionController = {
             order: exerciseData.order || (i + 1)
           });
 
-          // Crear los SetModels para este ExerciseRoutine
+          // Crear los Sets para este ExerciseRoutine
           if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
             for (let j = 0; j < exerciseData.sets.length; j++) {
               const setData = exerciseData.sets[j];
