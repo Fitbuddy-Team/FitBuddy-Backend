@@ -27,9 +27,23 @@ module.exports = {
     const exerciseSessions = [];
     const sets = [];
 
-    let sessionId = 1;
-    let exerciseSessionId = 1;
-    let setId = 1;
+    // Obtener el siguiente ID disponible para cada tabla
+    const lastSession = await queryInterface.sequelize.query(
+      'SELECT MAX(id) as max_id FROM "Sessions";',
+      { type: queryInterface.sequelize.QueryTypes.SELECT }
+    );
+    const lastExerciseSession = await queryInterface.sequelize.query(
+      'SELECT MAX(id) as max_id FROM "ExerciseSessions";',
+      { type: queryInterface.sequelize.QueryTypes.SELECT }
+    );
+    const lastSet = await queryInterface.sequelize.query(
+      'SELECT MAX(id) as max_id FROM "Sets";',
+      { type: queryInterface.sequelize.QueryTypes.SELECT }
+    );
+
+    let sessionId = (lastSession[0]?.max_id || 0) + 1;
+    let exerciseSessionId = (lastExerciseSession[0]?.max_id || 0) + 1;
+    let setId = (lastSet[0]?.max_id || 0) + 1;
 
     // Definir sesiones variadas para cada usuario
     const sessionTemplates = [

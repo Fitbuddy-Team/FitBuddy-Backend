@@ -317,6 +317,14 @@ export const routineController = {
         order: [['createdAt', 'DESC']]
       });
 
+      // Verificar si hay rutinas para el usuario
+      if (routines.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontraron rutinas para el usuario especificado'
+        });
+      }
+
       // Para cada rutina, buscar la última sesión que la usó
       const routinesWithLastTrained = await Promise.all(
         routines.map(async (routine) => {
