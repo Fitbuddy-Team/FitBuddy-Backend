@@ -1,4 +1,4 @@
-import { Routine, Exercise, ExerciseRoutine, Set as SetModel, Session, ExerciseSession, sequelize } from '../models/index.js';
+import { Routine, Exercise, ExerciseRoutine, Set as SetModel, Session, ExerciseSession, User, sequelize } from '../models/index.js';
 
 // Función auxiliar para manejar errores de secuencia
 async function createWithSequenceFallback(Model, data, options = {}) {
@@ -26,6 +26,15 @@ export const routineController = {
         return res.status(400).json({
           success: false,
           message: 'Se requieren userId, name y un array de exercises no vacío'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
         });
       }
 
@@ -402,6 +411,15 @@ export const routineController = {
         return res.status(400).json({
           success: false,
           message: 'Se requiere userId como parámetro'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
         });
       }
 
