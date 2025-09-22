@@ -93,8 +93,7 @@ export const routineController = {
         const exerciseRoutine = await ExerciseRoutine.create({
           routineId: routine.id,
           exerciseId: exerciseData.exerciseId,
-          order: exerciseData.order || (i + 1), // Usar el order proporcionado o asignar secuencial
-          status: exerciseData.status || 'active'
+          order: exerciseData.order || (i + 1) // Usar el order proporcionado o asignar secuencial
         });
 
         // Crear los Sets para este ExerciseRoutine
@@ -121,7 +120,7 @@ export const routineController = {
             as: 'exercises',
             through: {
               model: ExerciseRoutine,
-              as: 'exerciseRoutine',
+              attributes: ['id', 'routineId', 'exerciseId', 'order', 'createdAt', 'updatedAt'],
               include: [
                 {
                   model: Set,
@@ -161,22 +160,35 @@ export const routineController = {
             as: 'exercises',
             through: {
               model: ExerciseRoutine,
-              as: 'exerciseRoutine',
-              include: [
-                {
-                  model: Set,
-                  as: 'sets',
-                  order: [['order', 'ASC']]
-                }
-              ],
+              attributes: ['id', 'routineId', 'exerciseId', 'order', 'createdAt', 'updatedAt'],
               order: [['order', 'ASC']]
             }
           }
-        ],
-        order: [
-          [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, 'order', 'ASC'],
-          [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, { model: Set, as: 'sets' }, 'order', 'ASC']
         ]
+      });
+
+      // Obtener los sets por separado
+      const exerciseRoutineIds = [];
+      if (routine && routine.exercises) {
+        routine.exercises.forEach(exercise => {
+          if (exercise.ExerciseRoutine) {
+            exerciseRoutineIds.push(exercise.ExerciseRoutine.id);
+          }
+        });
+      }
+
+      const sets = exerciseRoutineIds.length > 0 ? await Set.findAll({
+        where: { exerciseRoutineId: exerciseRoutineIds },
+        order: [['order', 'ASC']]
+      }) : [];
+
+      // Agrupar sets por exerciseRoutineId
+      const setsByExerciseRoutine = {};
+      sets.forEach(set => {
+        if (!setsByExerciseRoutine[set.exerciseRoutineId]) {
+          setsByExerciseRoutine[set.exerciseRoutineId] = [];
+        }
+        setsByExerciseRoutine[set.exerciseRoutineId].push(set);
       });
 
       if (!routine) {
@@ -235,8 +247,13 @@ export const routineController = {
       // Ordenar manualmente los ejercicios y sets por order
       const sortedExercises = routine.exercises
         .map(exercise => {
-          const exerciseRoutine = exercise.exerciseRoutine;
-          const sortedSets = exerciseRoutine.sets
+          const exerciseRoutine = exercise.ExerciseRoutine;
+          if (!exerciseRoutine) {
+            console.error('ExerciseRoutine is undefined for exercise:', exercise.id);
+            return null;
+          }
+          const exerciseRoutineSets = setsByExerciseRoutine[exerciseRoutine.id] || [];
+          const sortedSets = exerciseRoutineSets
             .sort((a, b) => (a.order || 0) - (b.order || 0));
 
           return {
@@ -253,7 +270,6 @@ export const routineController = {
               routineId: exerciseRoutine.routineId,
               exerciseId: exerciseRoutine.exerciseId,
               order: exerciseRoutine.order,
-              status: exerciseRoutine.status,
               createdAt: exerciseRoutine.createdAt,
               updatedAt: exerciseRoutine.updatedAt,
               sets: sortedSets.map(set => ({
@@ -271,6 +287,7 @@ export const routineController = {
             }
           };
         })
+        .filter(exercise => exercise !== null)
         .sort((a, b) => (a.exerciseRoutine.order || 0) - (b.exerciseRoutine.order || 0));
 
       const responseData = {
@@ -521,8 +538,7 @@ export const routineController = {
           const exerciseRoutine = await ExerciseRoutine.create({
             routineId: routineId,
             exerciseId: exerciseData.exerciseId,
-            order: exerciseData.order || (i + 1), // Usar el order proporcionado o asignar secuencial
-            status: exerciseData.status || 'active'
+            order: exerciseData.order || (i + 1) // Usar el order proporcionado o asignar secuencial
           }, { transaction });
 
           // Crear los Sets para este ExerciseRoutine
@@ -552,7 +568,7 @@ export const routineController = {
               as: 'exercises',
               through: {
                 model: ExerciseRoutine,
-                as: 'exerciseRoutine',
+                attributes: ['id', 'routineId', 'exerciseId', 'order', 'createdAt', 'updatedAt'],
                 include: [
                   {
                     model: Set,
@@ -561,18 +577,18 @@ export const routineController = {
                 ]
               }
             }
-          ],
-          order: [
-            [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, 'order', 'ASC'],
-            [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, { model: Set, as: 'sets' }, 'order', 'ASC']
           ]
         });
 
         // Ordenar manualmente los ejercicios y sets por order
         const sortedExercises = updatedRoutine.exercises
           .map(exercise => {
-            const exerciseRoutine = exercise.exerciseRoutine;
-            const sortedSets = exerciseRoutine.sets
+            const exerciseRoutine = exercise.ExerciseRoutine;
+            if (!exerciseRoutine) {
+              console.error('ExerciseRoutine is undefined for exercise:', exercise.id);
+              return null;
+            }
+            const sortedSets = (exerciseRoutine.sets || [])
               .sort((a, b) => (a.order || 0) - (b.order || 0));
 
             return {
@@ -588,7 +604,6 @@ export const routineController = {
                 routineId: exerciseRoutine.routineId,
                 exerciseId: exerciseRoutine.exerciseId,
                 order: exerciseRoutine.order,
-                status: exerciseRoutine.status,
                 createdAt: exerciseRoutine.createdAt,
                 updatedAt: exerciseRoutine.updatedAt,
                 sets: sortedSets.map(set => ({
@@ -606,6 +621,7 @@ export const routineController = {
               }
             };
           })
+          .filter(exercise => exercise !== null)
           .sort((a, b) => (a.exerciseRoutine.order || 0) - (b.exerciseRoutine.order || 0));
 
         const responseData = {
