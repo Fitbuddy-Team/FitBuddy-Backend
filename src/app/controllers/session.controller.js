@@ -143,6 +143,28 @@ export const sessionController = {
         });
       }
 
+      // Si se proporciona routineId, validar que existe
+      if (routineId) {
+        const existingRoutine = await Routine.findByPk(routineId);
+        if (!existingRoutine) {
+          return res.status(404).json({
+            success: false,
+            message: 'La rutina especificada no existe'
+          });
+        }
+      }
+
+      // Si changeRoutine es true, validar que routineId existe
+      if (changeRoutine === true) {
+        if (!routineId) {
+          return res.status(404).json({
+            success: false,
+            message: 'No se puede actualizar la rutina: no hay rutina asociada a esta sesión'
+          });
+        }
+        // La validación de existencia ya se hizo arriba
+      }
+
       // Validar que todos los ejercicios existan
       const exerciseIds = exercises.map(ex => ex.exerciseId);
       const existingExercises = await Exercise.findAll({
@@ -194,24 +216,12 @@ export const sessionController = {
         }
       }
 
-      // Si changeRoutine es true y hay una rutina asociada, actualizar la rutina
+      // Si changeRoutine es true, actualizar la rutina
       // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
       if (changeRoutine === true) {
-        if (!routineId) {
-          return res.status(404).json({
-            success: false,
-            message: 'No se puede actualizar la rutina: no hay rutina asociada a esta sesión'
-          });
-        }
-
-        // Verificar que la rutina existe
+        // La validación de routineId y existencia ya se hizo arriba
+        // Obtener la rutina nuevamente para usar en la actualización
         const existingRoutine = await Routine.findByPk(routineId);
-        if (!existingRoutine) {
-          return res.status(404).json({
-            success: false,
-            message: 'La rutina especificada no existe'
-          });
-        }
 
         // Validar que todos los ejercicios tengan exerciseId
         for (const exerciseData of exercises) {
