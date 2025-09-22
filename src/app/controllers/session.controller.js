@@ -31,6 +31,14 @@ export const sessionController = {
         order: [['date', 'DESC']] // Ordenar por fecha más reciente primero
       });
 
+      // Verificar si hay sesiones para el usuario
+      if (sessions.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontraron sesiones para el usuario especificado'
+        });
+      }
+
       // Formatear la respuesta
       const formattedSessions = sessions.map(session => {
         const sessionData = {
