@@ -6,7 +6,6 @@ async function createWithSequenceFallback(Model, data, options = {}) {
     return await Model.create(data, options);
   } catch (error) {
     if (error.name === 'SequelizeUniqueConstraintError' && error.errors[0]?.path === 'id') {
-      console.log(`⚠️ Problema de secuencia detectado en ${Model.name}, usando ID manual...`);
       const maxId = await Model.max('id');
       return await Model.create({
         ...data,
