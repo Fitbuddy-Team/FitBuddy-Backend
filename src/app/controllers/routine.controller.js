@@ -1,4 +1,20 @@
-import { Routine, Exercise, ExerciseRoutine, Set, Session, ExerciseSession, sequelize } from '../models/index.js';
+import { Routine, Exercise, ExerciseRoutine, Set as SetModel, Session, ExerciseSession, User, sequelize } from '../models/index.js';
+
+// Función auxiliar para manejar errores de secuencia
+async function createWithSequenceFallback(Model, data, options = {}) {
+  try {
+    return await Model.create(data, options);
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError' && error.errors[0]?.path === 'id') {
+      const maxId = await Model.max('id');
+      return await Model.create({
+        ...data,
+        id: maxId + 1
+      }, options);
+    }
+    throw error;
+  }
+}
 
 export const routineController = {
   async createRoutine(req, res) {
@@ -12,6 +28,16 @@ export const routineController = {
           message: 'Se requieren userId, name y un array de exercises no vacío'
         });
       }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
 
       // Validar que todos los ejercicios existan
       const exerciseIds = exercises.map(ex => ex.exerciseId);
@@ -79,7 +105,7 @@ export const routineController = {
       }
 
       // Crear la rutina
-      const routine = await Routine.create({
+      const routine = await createWithSequenceFallback(Routine, {
         userId,
         name,
         description: description || null
@@ -90,18 +116,17 @@ export const routineController = {
         const exerciseData = exercises[i];
         
         // Crear ExerciseRoutine
-        const exerciseRoutine = await ExerciseRoutine.create({
+        const exerciseRoutine = await createWithSequenceFallback(ExerciseRoutine, {
           routineId: routine.id,
           exerciseId: exerciseData.exerciseId,
-          order: exerciseData.order || (i + 1), // Usar el order proporcionado o asignar secuencial
-          status: exerciseData.status || 'active'
+          order: exerciseData.order || (i + 1) // Usar el order proporcionado o asignar secuencial
         });
 
         // Crear los Sets para este ExerciseRoutine
         if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
           for (let j = 0; j < exerciseData.sets.length; j++) {
             const setData = exerciseData.sets[j];
-            await Set.create({
+            await createWithSequenceFallback(SetModel, {
               exerciseRoutineId: exerciseRoutine.id,
               order: setData.order || (j + 1), // Usar el order proporcionado o asignar secuencial
               status: setData.status || 'pending',
@@ -121,22 +146,84 @@ export const routineController = {
             as: 'exercises',
             through: {
               model: ExerciseRoutine,
-              as: 'exerciseRoutine',
-              include: [
-                {
-                  model: Set,
-                  as: 'sets'
-                }
-              ]
+              attributes: ['id', 'routineId', 'exerciseId', 'order', 'createdAt', 'updatedAt']
             }
           }
         ]
       });
 
+      // Obtener los sets por separado
+      const exerciseRoutineIds = [];
+      if (completeRoutine && completeRoutine.exercises) {
+        completeRoutine.exercises.forEach(exercise => {
+          if (exercise.ExerciseRoutine) {
+            exerciseRoutineIds.push(exercise.ExerciseRoutine.id);
+          }
+        });
+      }
+
+      const sets = exerciseRoutineIds.length > 0 ? await SetModel.findAll({
+        where: { exerciseRoutineId: exerciseRoutineIds },
+        order: [['order', 'ASC']]
+      }) : [];
+
+      // Agrupar sets por exerciseRoutineId
+      const setsByExerciseRoutine = {};
+      sets.forEach(set => {
+        if (!setsByExerciseRoutine[set.exerciseRoutineId]) {
+          setsByExerciseRoutine[set.exerciseRoutineId] = [];
+        }
+        setsByExerciseRoutine[set.exerciseRoutineId].push(set);
+      });
+
+      // Construir la respuesta con los sets incluidos
+      const responseData = {
+        id: completeRoutine.id,
+        userId: completeRoutine.userId,
+        name: completeRoutine.name,
+        description: completeRoutine.description,
+        createdAt: completeRoutine.createdAt,
+        updatedAt: completeRoutine.updatedAt,
+        exercises: completeRoutine.exercises.map(exercise => {
+          const exerciseRoutine = exercise.ExerciseRoutine;
+          const exerciseRoutineSets = setsByExerciseRoutine[exerciseRoutine.id] || [];
+          
+          return {
+            id: exercise.id,
+            name: exercise.name,
+            userMade: exercise.userMade,
+            categoryId: exercise.categoryId,
+            userId: exercise.userId,
+            createdAt: exercise.createdAt,
+            updatedAt: exercise.updatedAt,
+            exerciseRoutine: {
+              id: exerciseRoutine.id,
+              routineId: exerciseRoutine.routineId,
+              exerciseId: exerciseRoutine.exerciseId,
+              order: exerciseRoutine.order,
+              createdAt: exerciseRoutine.createdAt,
+              updatedAt: exerciseRoutine.updatedAt,
+              sets: exerciseRoutineSets.map(set => ({
+                id: set.id,
+                exerciseRoutineId: set.exerciseRoutineId,
+                exerciseSessionId: set.exerciseSessionId,
+                order: set.order,
+                status: set.status,
+                reps: set.reps,
+                weight: set.weight,
+                restTime: set.restTime,
+                createdAt: set.createdAt,
+                updatedAt: set.updatedAt
+              }))
+            }
+          };
+        })
+      };
+
       res.status(201).json({
         success: true,
         message: 'Rutina creada exitosamente',
-        data: completeRoutine
+        data: responseData
       });
 
     } catch (error) {
@@ -161,22 +248,35 @@ export const routineController = {
             as: 'exercises',
             through: {
               model: ExerciseRoutine,
-              as: 'exerciseRoutine',
-              include: [
-                {
-                  model: Set,
-                  as: 'sets',
-                  order: [['order', 'ASC']]
-                }
-              ],
+              attributes: ['id', 'routineId', 'exerciseId', 'order', 'createdAt', 'updatedAt'],
               order: [['order', 'ASC']]
             }
           }
-        ],
-        order: [
-          [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, 'order', 'ASC'],
-          [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, { model: Set, as: 'sets' }, 'order', 'ASC']
         ]
+      });
+
+      // Obtener los sets por separado
+      const exerciseRoutineIds = [];
+      if (routine && routine.exercises) {
+        routine.exercises.forEach(exercise => {
+          if (exercise.ExerciseRoutine) {
+            exerciseRoutineIds.push(exercise.ExerciseRoutine.id);
+          }
+        });
+      }
+
+      const sets = exerciseRoutineIds.length > 0 ? await SetModel.findAll({
+        where: { exerciseRoutineId: exerciseRoutineIds },
+        order: [['order', 'ASC']]
+      }) : [];
+
+      // Agrupar sets por exerciseRoutineId
+      const setsByExerciseRoutine = {};
+      sets.forEach(set => {
+        if (!setsByExerciseRoutine[set.exerciseRoutineId]) {
+          setsByExerciseRoutine[set.exerciseRoutineId] = [];
+        }
+        setsByExerciseRoutine[set.exerciseRoutineId].push(set);
       });
 
       if (!routine) {
@@ -210,7 +310,7 @@ export const routineController = {
           }
 
           // Obtener los sets de la última ExerciseSession
-          const previousSets = await Set.findAll({
+          const previousSets = await SetModel.findAll({
             where: { exerciseSessionId: lastExerciseSession.id },
             order: [['order', 'ASC']]
           });
@@ -235,8 +335,13 @@ export const routineController = {
       // Ordenar manualmente los ejercicios y sets por order
       const sortedExercises = routine.exercises
         .map(exercise => {
-          const exerciseRoutine = exercise.exerciseRoutine;
-          const sortedSets = exerciseRoutine.sets
+          const exerciseRoutine = exercise.ExerciseRoutine;
+          if (!exerciseRoutine) {
+            console.error('ExerciseRoutine is undefined for exercise:', exercise.id);
+            return null;
+          }
+          const exerciseRoutineSets = setsByExerciseRoutine[exerciseRoutine.id] || [];
+          const sortedSets = exerciseRoutineSets
             .sort((a, b) => (a.order || 0) - (b.order || 0));
 
           return {
@@ -253,7 +358,6 @@ export const routineController = {
               routineId: exerciseRoutine.routineId,
               exerciseId: exerciseRoutine.exerciseId,
               order: exerciseRoutine.order,
-              status: exerciseRoutine.status,
               createdAt: exerciseRoutine.createdAt,
               updatedAt: exerciseRoutine.updatedAt,
               sets: sortedSets.map(set => ({
@@ -271,6 +375,7 @@ export const routineController = {
             }
           };
         })
+        .filter(exercise => exercise !== null)
         .sort((a, b) => (a.exerciseRoutine.order || 0) - (b.exerciseRoutine.order || 0));
 
       const responseData = {
@@ -306,6 +411,15 @@ export const routineController = {
         return res.status(400).json({
           success: false,
           message: 'Se requiere userId como parámetro'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
         });
       }
 
@@ -419,14 +533,24 @@ export const routineController = {
       }
 
       // Validaciones básicas
-      if (!name || !exercises || !Array.isArray(exercises)) {
+      if (!name || !exercises || !Array.isArray(exercises) || exercises.length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Se requieren name y un array de exercises'
+          message: 'Se requieren name y un array de exercises con al menos un ejercicio'
         });
       }
 
-      // Validar que todos los ejercicios existan
+      // Validar que todos los ejercicios tengan exerciseId
+      for (const exerciseData of exercises) {
+        if (!exerciseData.exerciseId) {
+          return res.status(400).json({
+            success: false,
+            message: 'Todos los ejercicios deben tener un exerciseId válido'
+          });
+        }
+      }
+
+      // Validar que todos los exerciseId existen
       const exerciseIds = exercises.map(ex => ex.exerciseId);
       const existingExercises = await Exercise.findAll({
         where: { id: exerciseIds }
@@ -441,194 +565,140 @@ export const routineController = {
         });
       }
 
-      // Validar orden de ExerciseRoutines
-      const exerciseOrders = exercises.map(ex => ex.order).filter(order => order !== undefined);
-      if (exerciseOrders.length > 0) {
-        const uniqueOrders = [...new Set(exerciseOrders)];
-        if (exerciseOrders.length !== uniqueOrders.length) {
-          return res.status(400).json({
-            success: false,
-            message: 'Los ejercicios no pueden tener valores de orden duplicados'
-          });
+      // Actualizar información básica de la rutina (manteniendo el mismo userId)
+      await Routine.update(
+        {
+          name,
+          description: description || null
+        },
+        {
+          where: { id: routineId }
         }
+      );
+
+      // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
+      await ExerciseRoutine.destroy({
+        where: { routineId: routineId }
+      });
+
+      // Crear los nuevos ExerciseRoutine y sus Sets
+      for (let i = 0; i < exercises.length; i++) {
+        const exerciseData = exercises[i];
         
-        // Verificar que no haya saltos en el orden
-        const sortedOrders = exerciseOrders.sort((a, b) => a - b);
-        for (let i = 0; i < sortedOrders.length; i++) {
-          if (sortedOrders[i] !== i + 1) {
-            return res.status(400).json({
-              success: false,
-              message: 'El orden de los ejercicios debe ser secuencial sin saltos (1, 2, 3...)'
+        // Crear ExerciseRoutine
+        const exerciseRoutine = await createWithSequenceFallback(ExerciseRoutine, {
+          routineId: routineId,
+          exerciseId: exerciseData.exerciseId,
+          order: exerciseData.order || (i + 1)
+        });
+
+        // Crear los Sets para este ExerciseRoutine
+        if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
+          for (let j = 0; j < exerciseData.sets.length; j++) {
+            const setData = exerciseData.sets[j];
+            await createWithSequenceFallback(SetModel, {
+              exerciseRoutineId: exerciseRoutine.id,
+              order: setData.order || (j + 1),
+              status: setData.status || 'pending',
+              reps: setData.reps || null,
+              weight: setData.weight || null,
+              restTime: setData.restTime || null
             });
           }
         }
       }
 
-      // Validar orden de Sets para cada ejercicio
-      for (const exerciseData of exercises) {
-        if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
-          const setOrders = exerciseData.sets.map(set => set.order).filter(order => order !== undefined);
-          if (setOrders.length > 0) {
-            const uniqueSetOrders = [...new Set(setOrders)];
-            if (setOrders.length !== uniqueSetOrders.length) {
-              return res.status(400).json({
-                success: false,
-                message: `Los sets del ejercicio ${exerciseData.exerciseId} no pueden tener valores de orden duplicados`
-              });
-            }
-            
-            // Verificar que no haya saltos en el orden de los sets
-            const sortedSetOrders = setOrders.sort((a, b) => a - b);
-            for (let i = 0; i < sortedSetOrders.length; i++) {
-              if (sortedSetOrders[i] !== i + 1) {
-                return res.status(400).json({
-                  success: false,
-                  message: `El orden de los sets del ejercicio ${exerciseData.exerciseId} debe ser secuencial sin saltos (1, 2, 3...)`
-                });
-              }
+      // Obtener la rutina actualizada con sus ejercicios y sets
+      const updatedRoutine = await Routine.findByPk(routineId, {
+        include: [
+          {
+            model: Exercise,
+            as: 'exercises',
+            through: {
+              model: ExerciseRoutine,
+              attributes: ['id', 'routineId', 'exerciseId', 'order', 'createdAt', 'updatedAt']
             }
           }
-        }
-      }
+        ]
+      });
 
-      // Iniciar transacción para asegurar consistencia
-      const transaction = await sequelize.transaction();
-
-      try {
-        // Actualizar información básica de la rutina
-        await Routine.update(
+      // Obtener los sets por separado para evitar problemas de asociación
+      const exerciseRoutines = await ExerciseRoutine.findAll({
+        where: { routineId: routineId },
+        include: [
           {
-            name,
-            description: description || null
-          },
-          {
-            where: { id: routineId },
-            transaction
+            model: SetModel,
+            as: 'sets'
           }
-        );
+        ]
+      });
 
-        // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
-        await ExerciseRoutine.destroy({
-          where: { routineId: routineId },
-          transaction
-        });
+      // Crear un mapa de sets por exerciseRoutineId para facilitar la búsqueda
+      const setsByExerciseRoutineId = {};
+      exerciseRoutines.forEach(er => {
+        setsByExerciseRoutineId[er.id] = er.sets || [];
+      });
 
-        // Crear los nuevos ExerciseRoutine y sus Sets
-        for (let i = 0; i < exercises.length; i++) {
-          const exerciseData = exercises[i];
+      // Ordenar manualmente los ejercicios y sets por order
+      const sortedExercises = updatedRoutine.exercises
+        .map(exercise => {
+          const exerciseRoutine = exercise.ExerciseRoutine;
+          if (!exerciseRoutine) {
+            return null;
+          }
           
-          // Crear ExerciseRoutine
-          const exerciseRoutine = await ExerciseRoutine.create({
-            routineId: routineId,
-            exerciseId: exerciseData.exerciseId,
-            order: exerciseData.order || (i + 1), // Usar el order proporcionado o asignar secuencial
-            status: exerciseData.status || 'active'
-          }, { transaction });
+          // Obtener los sets para este exerciseRoutine
+          const sets = setsByExerciseRoutineId[exerciseRoutine.id] || [];
+          const sortedSets = sets.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-          // Crear los Sets para este ExerciseRoutine
-          if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
-            for (let j = 0; j < exerciseData.sets.length; j++) {
-              const setData = exerciseData.sets[j];
-              await Set.create({
-                exerciseRoutineId: exerciseRoutine.id,
-                order: setData.order || (j + 1), // Usar el order proporcionado o asignar secuencial
-                status: setData.status || 'pending',
-                reps: setData.reps || null,
-                weight: setData.weight || null,
-                restTime: setData.restTime || null
-              }, { transaction });
+          return {
+            id: exercise.id,
+            name: exercise.name,
+            userMade: exercise.userMade,
+            categoryId: exercise.categoryId,
+            userId: exercise.userId,
+            createdAt: exercise.createdAt,
+            updatedAt: exercise.updatedAt,
+            exerciseRoutine: {
+              id: exerciseRoutine.id,
+              routineId: exerciseRoutine.routineId,
+              exerciseId: exerciseRoutine.exerciseId,
+              order: exerciseRoutine.order,
+              createdAt: exerciseRoutine.createdAt,
+              updatedAt: exerciseRoutine.updatedAt,
+              sets: sortedSets.map(set => ({
+                id: set.id,
+                exerciseRoutineId: set.exerciseRoutineId,
+                exerciseSessionId: set.exerciseSessionId,
+                order: set.order,
+                status: set.status,
+                reps: set.reps,
+                weight: set.weight,
+                restTime: set.restTime,
+                createdAt: set.createdAt,
+                updatedAt: set.updatedAt
+              }))
             }
-          }
-        }
+          };
+        })
+        .filter(exercise => exercise !== null)
+        .sort((a, b) => (a.exerciseRoutine.order || 0) - (b.exerciseRoutine.order || 0));
 
-        // Confirmar transacción
-        await transaction.commit();
+      const responseData = {
+        id: updatedRoutine.id,
+        userId: updatedRoutine.userId,
+        name: updatedRoutine.name,
+        description: updatedRoutine.description,
+        createdAt: updatedRoutine.createdAt,
+        updatedAt: updatedRoutine.updatedAt,
+        exercises: sortedExercises
+      };
 
-        // Obtener la rutina actualizada con sus ejercicios y sets
-        const updatedRoutine = await Routine.findByPk(routineId, {
-          include: [
-            {
-              model: Exercise,
-              as: 'exercises',
-              through: {
-                model: ExerciseRoutine,
-                as: 'exerciseRoutine',
-                include: [
-                  {
-                    model: Set,
-                    as: 'sets'
-                  }
-                ]
-              }
-            }
-          ],
-          order: [
-            [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, 'order', 'ASC'],
-            [{ model: Exercise, as: 'exercises' }, { model: ExerciseRoutine, as: 'exerciseRoutine' }, { model: Set, as: 'sets' }, 'order', 'ASC']
-          ]
-        });
-
-        // Ordenar manualmente los ejercicios y sets por order
-        const sortedExercises = updatedRoutine.exercises
-          .map(exercise => {
-            const exerciseRoutine = exercise.exerciseRoutine;
-            const sortedSets = exerciseRoutine.sets
-              .sort((a, b) => (a.order || 0) - (b.order || 0));
-
-            return {
-              id: exercise.id,
-              name: exercise.name,
-              userMade: exercise.userMade,
-              categoryId: exercise.categoryId,
-              userId: exercise.userId,
-              createdAt: exercise.createdAt,
-              updatedAt: exercise.updatedAt,
-              exerciseRoutine: {
-                id: exerciseRoutine.id,
-                routineId: exerciseRoutine.routineId,
-                exerciseId: exerciseRoutine.exerciseId,
-                order: exerciseRoutine.order,
-                status: exerciseRoutine.status,
-                createdAt: exerciseRoutine.createdAt,
-                updatedAt: exerciseRoutine.updatedAt,
-                sets: sortedSets.map(set => ({
-                  id: set.id,
-                  exerciseRoutineId: set.exerciseRoutineId,
-                  exerciseSessionId: set.exerciseSessionId,
-                  order: set.order,
-                  status: set.status,
-                  reps: set.reps,
-                  weight: set.weight,
-                  restTime: set.restTime,
-                  createdAt: set.createdAt,
-                  updatedAt: set.updatedAt
-                }))
-              }
-            };
-          })
-          .sort((a, b) => (a.exerciseRoutine.order || 0) - (b.exerciseRoutine.order || 0));
-
-        const responseData = {
-          id: updatedRoutine.id,
-          userId: updatedRoutine.userId,
-          name: updatedRoutine.name,
-          description: updatedRoutine.description,
-          createdAt: updatedRoutine.createdAt,
-          updatedAt: updatedRoutine.updatedAt,
-          exercises: sortedExercises
-        };
-
-        res.json({
-          success: true,
-          message: 'Rutina actualizada exitosamente',
-          data: responseData
-        });
-
-      } catch (error) {
-        // Revertir transacción en caso de error
-        await transaction.rollback();
-        throw error;
-      }
+      res.json({
+        success: true,
+        message: 'Rutina actualizada exitosamente',
+        data: responseData
+      });
 
     } catch (error) {
       console.error('Error updating routine:', error);

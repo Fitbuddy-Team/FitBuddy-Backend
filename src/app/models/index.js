@@ -47,8 +47,8 @@ ExerciseMuscleGroup.associate?.({ Exercise, MuscleGroup });
 MuscleGroup.associate?.({ Exercise, ExerciseMuscleGroup });
 Routine.associate?.({ User, Exercise, ExerciseRoutine });
 Session.associate?.({ User, Routine, Exercise, ExerciseSession });
-Set.associate?.({ ExerciseRoutine, ExerciseSession });
 User.associate?.({ Routine, Session, Exercise });
+Set.associate?.({ ExerciseRoutine, ExerciseSession });
 ExerciseRoutine.associate?.({ Routine, Exercise, Set });
 ExerciseSession.associate?.({ Session, Exercise, Set });
 
