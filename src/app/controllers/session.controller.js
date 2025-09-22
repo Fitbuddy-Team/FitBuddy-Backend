@@ -1,4 +1,4 @@
-import { Session, Routine, ExerciseSession, ExerciseRoutine, Set, Exercise, sequelize } from '../models/index.js';
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, sequelize } from '../models/index.js';
 
 export const sessionController = {
   // Obtener todas las sesiones de un usuario
@@ -11,6 +11,15 @@ export const sessionController = {
         return res.status(400).json({
           success: false,
           message: 'ID de usuario inválido'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
         });
       }
 
@@ -146,7 +155,7 @@ export const sessionController = {
           status: status || 'completed'
         }, { transaction });
 
-        // Crear los ExerciseSession y sus Sets
+        // Crear los ExerciseSession y sus SetModels
         for (let i = 0; i < exercises.length; i++) {
           const exerciseData = exercises[i];
           
@@ -157,11 +166,11 @@ export const sessionController = {
             order: exerciseData.order || (i + 1)
           }, { transaction });
 
-          // Crear los Sets para este ExerciseSession
+          // Crear los SetModels para este ExerciseSession
           if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
             for (let j = 0; j < exerciseData.sets.length; j++) {
               const setData = exerciseData.sets[j];
-              await Set.create({
+              await SetModel.create({
                 exerciseSessionId: exerciseSession.id,
                 order: setData.order || (j + 1),
                 status: setData.status || 'completed',
@@ -186,13 +195,13 @@ export const sessionController = {
             });
           }
 
-          // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
+          // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los SetModels)
           await ExerciseRoutine.destroy({
             where: { routineId: routineId },
             transaction
           });
 
-          // Crear los nuevos ExerciseRoutine y sus Sets basados en los ejercicios de la sesión
+          // Crear los nuevos ExerciseRoutine y sus SetModels basados en los ejercicios de la sesión
           for (let i = 0; i < exercises.length; i++) {
             const exerciseData = exercises[i];
             
@@ -204,11 +213,11 @@ export const sessionController = {
               status: exerciseData.status || 'active'
             }, { transaction });
 
-            // Crear los Sets para este ExerciseRoutine
+            // Crear los SetModels para este ExerciseRoutine
             if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
               for (let j = 0; j < exerciseData.sets.length; j++) {
                 const setData = exerciseData.sets[j];
-                await Set.create({
+                await SetModel.create({
                   exerciseRoutineId: exerciseRoutine.id,
                   order: setData.order || (j + 1),
                   status: setData.status || 'pending',
@@ -230,7 +239,7 @@ export const sessionController = {
             {
               model: Routine,
               as: 'routine',
-              attributes: ['id', 'name', 'description'],
+              attributes: ['id', 'name', 'userMade', 'categoryId', 'userId'],
               required: false
             },
             {
@@ -241,13 +250,13 @@ export const sessionController = {
                 as: 'exerciseSession',
                 include: [
                   {
-                    model: Set,
+                    model: SetModel,
                     as: 'sets',
                     attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
                   }
                 ]
               },
-              attributes: ['id', 'name', 'description']
+              attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
             }
           ]
         });
@@ -287,7 +296,7 @@ export const sessionController = {
         });
       }
 
-      // Buscar la sesión con toda su información relacionada
+      // Buscar la sesión con información básica
       const session = await Session.findByPk(parseInt(sessionId), {
         include: [
           {
@@ -302,18 +311,23 @@ export const sessionController = {
             through: {
               model: ExerciseSession,
               as: 'exerciseSession',
-              include: [
-                {
-                  model: Set,
-                  as: 'sets',
-                  attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime', 'createdAt', 'updatedAt']
-                }
-              ]
+              attributes: ['id', 'sessionId', 'exerciseId', 'order', 'createdAt', 'updatedAt']
             },
-            attributes: ['id', 'name', 'description', 'muscleGroup', 'equipment']
+            attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
           }
         ],
         attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt']
+      });
+
+      // Obtener los sets por separado para evitar problemas de asociación
+      const exerciseSessions = await ExerciseSession.findAll({
+        where: { sessionId: parseInt(sessionId) },
+        include: [
+          {
+            model: SetModel,
+            as: 'sets'
+          }
+        ]
       });
 
       // Verificar si la sesión existe
@@ -323,6 +337,12 @@ export const sessionController = {
           message: 'Sesión no encontrada'
         });
       }
+
+      // Crear un mapa de sets por exerciseSessionId para facilitar la búsqueda
+      const setsByExerciseSessionId = {};
+      exerciseSessions.forEach(es => {
+        setsByExerciseSessionId[es.id] = es.sets || [];
+      });
 
       // Formatear la respuesta
       const formattedSession = {
@@ -339,24 +359,35 @@ export const sessionController = {
           name: session.routine.name,
           description: session.routine.description
         } : null,
-        exercises: session.exercises.map(exercise => ({
-          id: exercise.id,
-          name: exercise.name,
-          description: exercise.description,
-          muscleGroup: exercise.muscleGroup,
-          equipment: exercise.equipment,
-          order: exercise.exerciseSession.order,
-          sets: exercise.exerciseSession.sets.map(set => ({
-            id: set.id,
-            order: set.order,
-            status: set.status,
-            reps: set.reps,
-            weight: set.weight,
-            restTime: set.restTime,
-            createdAt: set.createdAt,
-            updatedAt: set.updatedAt
-          }))
-        }))
+        exercises: session.exercises.map(exercise => {
+          const exerciseSession = exercise.exerciseSession;
+          if (!exerciseSession) {
+            return null;
+          }
+          
+          // Obtener los sets para este exerciseSession
+          const sets = setsByExerciseSessionId[exerciseSession.id] || [];
+          const sortedSets = sets.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+          return {
+            id: exercise.id,
+            name: exercise.name,
+            userMade: exercise.userMade,
+            categoryId: exercise.categoryId,
+            userId: exercise.userId,
+            order: exerciseSession.order,
+            sets: sortedSets.map(set => ({
+              id: set.id,
+              order: set.order,
+              status: set.status,
+              reps: set.reps,
+              weight: set.weight,
+              restTime: set.restTime,
+              createdAt: set.createdAt,
+              updatedAt: set.updatedAt
+            }))
+          };
+        }).filter(exercise => exercise !== null)
       };
 
       res.status(200).json({
@@ -440,13 +471,13 @@ export const sessionController = {
           }
         );
 
-        // Eliminar todos los ExerciseSessions existentes (esto eliminará automáticamente los Sets)
+        // Eliminar todos los ExerciseSessions existentes (esto eliminará automáticamente los SetModels)
         await ExerciseSession.destroy({
           where: { sessionId: sessionId },
           transaction
         });
 
-        // Crear los nuevos ExerciseSession y sus Sets
+        // Crear los nuevos ExerciseSession y sus SetModels
         for (let i = 0; i < exercises.length; i++) {
           const exerciseData = exercises[i];
           
@@ -457,11 +488,11 @@ export const sessionController = {
             order: exerciseData.order || (i + 1)
           }, { transaction });
 
-          // Crear los Sets para este ExerciseSession
+          // Crear los SetModels para este ExerciseSession
           if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
             for (let j = 0; j < exerciseData.sets.length; j++) {
               const setData = exerciseData.sets[j];
-              await Set.create({
+              await SetModel.create({
                 exerciseSessionId: exerciseSession.id,
                 order: setData.order || (j + 1),
                 status: setData.status || 'completed',
@@ -482,7 +513,7 @@ export const sessionController = {
             {
               model: Routine,
               as: 'routine',
-              attributes: ['id', 'name', 'description'],
+              attributes: ['id', 'name', 'userMade', 'categoryId', 'userId'],
               required: false
             },
             {
@@ -493,13 +524,13 @@ export const sessionController = {
                 as: 'exerciseSession',
                 include: [
                   {
-                    model: Set,
+                    model: SetModel,
                     as: 'sets',
                     attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
                   }
                 ]
               },
-              attributes: ['id', 'name', 'description']
+              attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
             }
           ]
         });
@@ -558,9 +589,9 @@ export const sessionController = {
           transaction
         });
 
-        // Para cada ExerciseSession, eliminar sus Sets
+        // Para cada ExerciseSession, eliminar sus SetModels
         for (const exerciseSession of exerciseSessions) {
-          await Set.destroy({
+          await SetModel.destroy({
             where: { exerciseSessionId: exerciseSession.id },
             transaction
           });

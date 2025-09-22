@@ -9,6 +9,9 @@ export default (sequelize, DataTypes) => {
 
       // Una fila pertenece a un ejercicio
       this.belongsTo(models.Exercise, { foreignKey: 'exerciseId', as: 'exercise' });
+
+      // Una fila puede tener muchos sets
+      this.hasMany(models.Set, { foreignKey: 'exerciseSessionId', as: 'sets' });
     }
   }
   ExerciseSession.init({
