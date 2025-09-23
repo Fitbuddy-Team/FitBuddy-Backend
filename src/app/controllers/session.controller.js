@@ -1,4 +1,20 @@
-import { Session, Routine, ExerciseSession, ExerciseRoutine, Set, Exercise, sequelize } from '../models/index.js';
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, sequelize } from '../models/index.js';
+
+// Función auxiliar para manejar errores de secuencia
+async function createWithSequenceFallback(Model, data, options = {}) {
+  try {
+    return await Model.create(data, options);
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError' && error.errors[0]?.path === 'id') {
+      const maxId = await Model.max('id');
+      return await Model.create({
+        ...data,
+        id: maxId + 1
+      }, options);
+    }
+    throw error;
+  }
+}
 
 export const sessionController = {
   // Obtener todas las sesiones de un usuario
@@ -11,6 +27,15 @@ export const sessionController = {
         return res.status(400).json({
           success: false,
           message: 'ID de usuario inválido'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
         });
       }
 
@@ -109,13 +134,35 @@ export const sessionController = {
         });
       }
 
-      // Verificar que el usuario existe (opcional, pero recomendado)
-      const userExists = await sequelize.models.User.findByPk(userId);
-      if (!userExists) {
-        return res.status(400).json({
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
           success: false,
-          message: 'El usuario especificado no existe'
+          message: 'Usuario no encontrado'
         });
+      }
+
+      // Si se proporciona routineId, validar que existe
+      if (routineId) {
+        const existingRoutine = await Routine.findByPk(routineId);
+        if (!existingRoutine) {
+          return res.status(404).json({
+            success: false,
+            message: 'La rutina especificada no existe'
+          });
+        }
+      }
+
+      // Si changeRoutine es true, validar que routineId existe
+      if (changeRoutine === true) {
+        if (!routineId) {
+          return res.status(404).json({
+            success: false,
+            message: 'No se puede actualizar la rutina: no hay rutina asociada a esta sesión'
+          });
+        }
+        // La validación de existencia ya se hizo arriba
       }
 
       // Validar que todos los ejercicios existan
@@ -133,96 +180,117 @@ export const sessionController = {
         });
       }
 
-      // Iniciar transacción para asegurar consistencia
-      const transaction = await sequelize.transaction();
+      // Crear la sesión
+      const session = await createWithSequenceFallback(Session, {
+        userId: parseInt(userId),
+        routineId: routineId ? parseInt(routineId) : null,
+        date: new Date(),
+        duration: duration || null,
+        status: status || 'completed'
+      });
 
-      try {
-        // Crear la sesión
-        const session = await Session.create({
-          userId: parseInt(userId),
-          routineId: routineId ? parseInt(routineId) : null,
-          date: new Date(),
-          duration: duration || null,
-          status: status || 'completed'
-        }, { transaction });
+      // Crear los ExerciseSession y sus SetModels
+      for (let i = 0; i < exercises.length; i++) {
+        const exerciseData = exercises[i];
+        
+        // Crear ExerciseSession
+        const exerciseSession = await createWithSequenceFallback(ExerciseSession, {
+          sessionId: session.id,
+          exerciseId: exerciseData.exerciseId,
+          order: exerciseData.order || (i + 1)
+        });
 
-        // Crear los ExerciseSession y sus Sets
+        // Crear los SetModels para este ExerciseSession
+        if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
+          for (let j = 0; j < exerciseData.sets.length; j++) {
+            const setData = exerciseData.sets[j];
+            await createWithSequenceFallback(SetModel, {
+              exerciseSessionId: exerciseSession.id,
+              order: setData.order || (j + 1),
+              status: setData.status || 'completed',
+              reps: setData.reps || null,
+              weight: setData.weight || null,
+              restTime: setData.restTime || null
+            });
+          }
+        }
+      }
+
+      // Si changeRoutine es true, actualizar la rutina
+      // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
+      if (changeRoutine === true) {
+        // La validación de routineId y existencia ya se hizo arriba
+        // Obtener la rutina nuevamente para usar en la actualización
+        const existingRoutine = await Routine.findByPk(routineId);
+
+        // Validar que todos los ejercicios tengan exerciseId
+        for (const exerciseData of exercises) {
+          if (!exerciseData.exerciseId) {
+            return res.status(400).json({
+              success: false,
+              message: 'Todos los ejercicios deben tener un exerciseId válido para actualizar la rutina'
+            });
+          }
+        }
+
+        // Validar que todos los exerciseId existen
+        const exerciseIds = exercises.map(ex => ex.exerciseId);
+        const existingExercises = await Exercise.findAll({
+          where: { id: exerciseIds }
+        });
+
+        if (existingExercises.length !== exerciseIds.length) {
+          const foundIds = existingExercises.map(ex => ex.id);
+          const missingIds = exerciseIds.filter(id => !foundIds.includes(id));
+          return res.status(400).json({
+            success: false,
+            message: `Los siguientes ejercicios no existen: ${missingIds.join(', ')}`
+          });
+        }
+
+        // Actualizar información básica de la rutina (manteniendo el mismo userId)
+        await Routine.update(
+          {
+            name: existingRoutine.name, // Mantener el nombre original
+            description: existingRoutine.description // Mantener la descripción original
+          },
+          {
+            where: { id: routineId }
+          }
+        );
+
+        // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
+        await ExerciseRoutine.destroy({
+          where: { routineId: routineId }
+        });
+
+        // Crear los nuevos ExerciseRoutine y sus Sets
         for (let i = 0; i < exercises.length; i++) {
           const exerciseData = exercises[i];
           
-          // Crear ExerciseSession
-          const exerciseSession = await ExerciseSession.create({
-            sessionId: session.id,
+          // Crear ExerciseRoutine
+          const exerciseRoutine = await createWithSequenceFallback(ExerciseRoutine, {
+            routineId: routineId,
             exerciseId: exerciseData.exerciseId,
             order: exerciseData.order || (i + 1)
-          }, { transaction });
+          });
 
-          // Crear los Sets para este ExerciseSession
+          // Crear los Sets para este ExerciseRoutine
           if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
             for (let j = 0; j < exerciseData.sets.length; j++) {
               const setData = exerciseData.sets[j];
-              await Set.create({
-                exerciseSessionId: exerciseSession.id,
+              await createWithSequenceFallback(SetModel, {
+                exerciseRoutineId: exerciseRoutine.id,
                 order: setData.order || (j + 1),
-                status: setData.status || 'completed',
+                status: setData.status || 'pending',
                 reps: setData.reps || null,
                 weight: setData.weight || null,
                 restTime: setData.restTime || null
-              }, { transaction });
+              });
             }
           }
         }
-
-        // Si changeRoutine es true y hay una rutina asociada, actualizar la rutina
-        // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
-        if (changeRoutine === true && routineId) {
-          // Verificar que la rutina existe
-          const existingRoutine = await Routine.findByPk(routineId, { transaction });
-          if (!existingRoutine) {
-            await transaction.rollback();
-            return res.status(404).json({
-              success: false,
-              message: 'La rutina especificada no existe'
-            });
-          }
-
-          // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
-          await ExerciseRoutine.destroy({
-            where: { routineId: routineId },
-            transaction
-          });
-
-          // Crear los nuevos ExerciseRoutine y sus Sets basados en los ejercicios de la sesión
-          for (let i = 0; i < exercises.length; i++) {
-            const exerciseData = exercises[i];
-            
-            // Crear ExerciseRoutine
-            const exerciseRoutine = await ExerciseRoutine.create({
-              routineId: routineId,
-              exerciseId: exerciseData.exerciseId,
-              order: exerciseData.order || (i + 1),
-              status: exerciseData.status || 'active'
-            }, { transaction });
-
-            // Crear los Sets para este ExerciseRoutine
-            if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
-              for (let j = 0; j < exerciseData.sets.length; j++) {
-                const setData = exerciseData.sets[j];
-                await Set.create({
-                  exerciseRoutineId: exerciseRoutine.id,
-                  order: setData.order || (j + 1),
-                  status: setData.status || 'pending',
-                  reps: setData.reps || null,
-                  weight: setData.weight || null,
-                  restTime: setData.restTime || null
-                }, { transaction });
-              }
-            }
-          }
-        }
-
-        // Confirmar transacción
-        await transaction.commit();
+      }
 
         // Obtener la sesión creada con toda su información
         const createdSession = await Session.findByPk(session.id, {
@@ -230,7 +298,7 @@ export const sessionController = {
             {
               model: Routine,
               as: 'routine',
-              attributes: ['id', 'name', 'description'],
+              attributes: ['id', 'name', 'description', 'userId'],
               required: false
             },
             {
@@ -239,30 +307,43 @@ export const sessionController = {
               through: {
                 model: ExerciseSession,
                 as: 'exerciseSession',
-                include: [
-                  {
-                    model: Set,
-                    as: 'sets',
-                    attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
-                  }
-                ]
+                attributes: ['id', 'sessionId', 'exerciseId', 'order', 'createdAt', 'updatedAt']
               },
-              attributes: ['id', 'name', 'description']
+              attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
             }
           ]
         });
 
-        res.status(201).json({
-          success: true,
-          message: 'Sesión creada exitosamente',
-          data: createdSession
+        // Obtener los ExerciseSessions con sus SetModels por separado
+        const exerciseSessions = await ExerciseSession.findAll({
+          where: { sessionId: session.id },
+          include: [
+            {
+              model: SetModel,
+              as: 'sets',
+              attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+            }
+          ]
         });
 
-      } catch (error) {
-        // Si hay error, hacer rollback de la transacción
-        await transaction.rollback();
-        throw error;
-      }
+        // Mapear los sets a los ejercicios
+        if (createdSession && createdSession.exercises) {
+          createdSession.exercises.forEach(exercise => {
+            const exerciseSession = exerciseSessions.find(es => es.exerciseId === exercise.id);
+            if (exerciseSession && exerciseSession.sets) {
+              exercise.ExerciseSession = {
+                ...exercise.ExerciseSession,
+                sets: exerciseSession.sets
+              };
+            }
+          });
+        }
+
+      res.status(201).json({
+        success: true,
+        message: 'Sesión creada exitosamente',
+        data: createdSession
+      });
 
     } catch (error) {
       console.error('Error al crear sesión:', error);
@@ -287,7 +368,7 @@ export const sessionController = {
         });
       }
 
-      // Buscar la sesión con toda su información relacionada
+      // Buscar la sesión con información básica
       const session = await Session.findByPk(parseInt(sessionId), {
         include: [
           {
@@ -302,18 +383,23 @@ export const sessionController = {
             through: {
               model: ExerciseSession,
               as: 'exerciseSession',
-              include: [
-                {
-                  model: Set,
-                  as: 'sets',
-                  attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime', 'createdAt', 'updatedAt']
-                }
-              ]
+              attributes: ['id', 'sessionId', 'exerciseId', 'order', 'createdAt', 'updatedAt']
             },
-            attributes: ['id', 'name', 'description', 'muscleGroup', 'equipment']
+            attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
           }
         ],
         attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt']
+      });
+
+      // Obtener los sets por separado para evitar problemas de asociación
+      const exerciseSessions = await ExerciseSession.findAll({
+        where: { sessionId: parseInt(sessionId) },
+        include: [
+          {
+            model: SetModel,
+            as: 'sets'
+          }
+        ]
       });
 
       // Verificar si la sesión existe
@@ -323,6 +409,12 @@ export const sessionController = {
           message: 'Sesión no encontrada'
         });
       }
+
+      // Crear un mapa de sets por exerciseSessionId para facilitar la búsqueda
+      const setsByExerciseSessionId = {};
+      exerciseSessions.forEach(es => {
+        setsByExerciseSessionId[es.id] = es.sets || [];
+      });
 
       // Formatear la respuesta
       const formattedSession = {
@@ -339,24 +431,35 @@ export const sessionController = {
           name: session.routine.name,
           description: session.routine.description
         } : null,
-        exercises: session.exercises.map(exercise => ({
-          id: exercise.id,
-          name: exercise.name,
-          description: exercise.description,
-          muscleGroup: exercise.muscleGroup,
-          equipment: exercise.equipment,
-          order: exercise.exerciseSession.order,
-          sets: exercise.exerciseSession.sets.map(set => ({
-            id: set.id,
-            order: set.order,
-            status: set.status,
-            reps: set.reps,
-            weight: set.weight,
-            restTime: set.restTime,
-            createdAt: set.createdAt,
-            updatedAt: set.updatedAt
-          }))
-        }))
+        exercises: session.exercises.map(exercise => {
+          const exerciseSession = exercise.exerciseSession;
+          if (!exerciseSession) {
+            return null;
+          }
+          
+          // Obtener los sets para este exerciseSession
+          const sets = setsByExerciseSessionId[exerciseSession.id] || [];
+          const sortedSets = sets.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+          return {
+            id: exercise.id,
+            name: exercise.name,
+            userMade: exercise.userMade,
+            categoryId: exercise.categoryId,
+            userId: exercise.userId,
+            order: exerciseSession.order,
+            sets: sortedSets.map(set => ({
+              id: set.id,
+              order: set.order,
+              status: set.status,
+              reps: set.reps,
+              weight: set.weight,
+              restTime: set.restTime,
+              createdAt: set.createdAt,
+              updatedAt: set.updatedAt
+            }))
+          };
+        }).filter(exercise => exercise !== null)
       };
 
       res.status(200).json({
@@ -382,8 +485,11 @@ export const sessionController = {
       const { 
         duration, 
         status, 
+        changeRoutine = false, // Valor por defecto
         exercises 
       } = req.body;
+
+      console.log('🔄 UPDATE SESSION: changeRoutine =', changeRoutine, 'tipo:', typeof changeRoutine);
 
       // Validaciones básicas
       if (!sessionId || isNaN(sessionId)) {
@@ -409,6 +515,27 @@ export const sessionController = {
         });
       }
 
+      // Si changeRoutine es true, validar que routineId existe
+      if (changeRoutine === true) {
+        console.log('🚨 UPDATE SESSION: changeRoutine es true, validando routineId');
+        if (!existingSession.routineId) {
+          return res.status(404).json({
+            success: false,
+            message: 'No se puede actualizar la rutina: no hay rutina asociada a esta sesión'
+          });
+        }
+        // Verificar que la rutina existe
+        const existingRoutine = await Routine.findByPk(existingSession.routineId);
+        if (!existingRoutine) {
+          return res.status(404).json({
+            success: false,
+            message: 'La rutina asociada a esta sesión no existe'
+          });
+        }
+      } else {
+        console.log('✅ UPDATE SESSION: changeRoutine NO es true, no se actualizará la rutina');
+      }
+
       // Validar que todos los ejercicios existan
       const exerciseIds = exercises.map(ex => ex.exerciseId);
       const existingExercises = await Exercise.findAll({
@@ -424,97 +551,153 @@ export const sessionController = {
         });
       }
 
-      // Iniciar transacción para asegurar consistencia
-      const transaction = await sequelize.transaction();
+      // Actualizar información básica de la sesión
+      await Session.update(
+        {
+          duration: duration || existingSession.duration,
+          status: status || existingSession.status
+        },
+        {
+          where: { id: sessionId }
+        }
+      );
 
-      try {
-        // Actualizar información básica de la sesión (NO incluir routineId)
-        await Session.update(
+      // Eliminar todos los ExerciseSessions existentes (esto eliminará automáticamente los SetModels)
+      await ExerciseSession.destroy({
+        where: { sessionId: sessionId }
+      });
+
+      // Crear los nuevos ExerciseSession y sus SetModels
+      for (let i = 0; i < exercises.length; i++) {
+        const exerciseData = exercises[i];
+        
+        // Crear ExerciseSession
+        const exerciseSession = await createWithSequenceFallback(ExerciseSession, {
+          sessionId: sessionId,
+          exerciseId: exerciseData.exerciseId,
+          order: exerciseData.order || (i + 1)
+        });
+
+        // Crear los SetModels para este ExerciseSession
+        if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
+          for (let j = 0; j < exerciseData.sets.length; j++) {
+            const setData = exerciseData.sets[j];
+            await createWithSequenceFallback(SetModel, {
+              exerciseSessionId: exerciseSession.id,
+              order: setData.order || (j + 1),
+              status: setData.status || 'completed',
+              reps: setData.reps || null,
+              weight: setData.weight || null,
+              restTime: setData.restTime || null
+            });
+          }
+        }
+      }
+
+      // Si changeRoutine es true, actualizar la rutina
+      if (changeRoutine === true) {
+        console.log('🚨 UPDATE SESSION: ACTUALIZANDO RUTINA porque changeRoutine es true');
+        // La validación de routineId y existencia ya se hizo arriba
+        const existingRoutine = await Routine.findByPk(existingSession.routineId);
+
+        // Actualizar información básica de la rutina (manteniendo el mismo userId)
+        await Routine.update(
           {
-            duration: duration || null,
-            status: status || existingSession.status
+            name: existingRoutine.name, // Mantener el nombre original
+            description: existingRoutine.description // Mantener la descripción original
           },
           {
-            where: { id: sessionId },
-            transaction
+            where: { id: existingSession.routineId }
           }
         );
 
-        // Eliminar todos los ExerciseSessions existentes (esto eliminará automáticamente los Sets)
-        await ExerciseSession.destroy({
-          where: { sessionId: sessionId },
-          transaction
+        // Eliminar todos los ExerciseRoutines existentes (esto eliminará automáticamente los Sets)
+        await ExerciseRoutine.destroy({
+          where: { routineId: existingSession.routineId }
         });
 
-        // Crear los nuevos ExerciseSession y sus Sets
+        // Crear los nuevos ExerciseRoutine y sus Sets
         for (let i = 0; i < exercises.length; i++) {
           const exerciseData = exercises[i];
           
-          // Crear ExerciseSession
-          const exerciseSession = await ExerciseSession.create({
-            sessionId: sessionId,
+          // Crear ExerciseRoutine
+          const exerciseRoutine = await createWithSequenceFallback(ExerciseRoutine, {
+            routineId: existingSession.routineId,
             exerciseId: exerciseData.exerciseId,
             order: exerciseData.order || (i + 1)
-          }, { transaction });
+          });
 
-          // Crear los Sets para este ExerciseSession
+          // Crear los Sets para este ExerciseRoutine
           if (exerciseData.sets && Array.isArray(exerciseData.sets)) {
             for (let j = 0; j < exerciseData.sets.length; j++) {
               const setData = exerciseData.sets[j];
-              await Set.create({
-                exerciseSessionId: exerciseSession.id,
+              await createWithSequenceFallback(SetModel, {
+                exerciseRoutineId: exerciseRoutine.id,
                 order: setData.order || (j + 1),
-                status: setData.status || 'completed',
+                status: setData.status || 'pending',
                 reps: setData.reps || null,
                 weight: setData.weight || null,
                 restTime: setData.restTime || null
-              }, { transaction });
+              });
             }
           }
         }
-
-        // Confirmar transacción
-        await transaction.commit();
-
-        // Obtener la sesión actualizada con toda su información
-        const updatedSession = await Session.findByPk(sessionId, {
-          include: [
-            {
-              model: Routine,
-              as: 'routine',
-              attributes: ['id', 'name', 'description'],
-              required: false
-            },
-            {
-              model: Exercise,
-              as: 'exercises',
-              through: {
-                model: ExerciseSession,
-                as: 'exerciseSession',
-                include: [
-                  {
-                    model: Set,
-                    as: 'sets',
-                    attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
-                  }
-                ]
-              },
-              attributes: ['id', 'name', 'description']
-            }
-          ]
-        });
-
-        res.status(200).json({
-          success: true,
-          message: 'Sesión actualizada exitosamente',
-          data: updatedSession
-        });
-
-      } catch (error) {
-        // Si hay error, hacer rollback de la transacción
-        await transaction.rollback();
-        throw error;
+      } else {
+        console.log('✅ UPDATE SESSION: NO se actualizará la rutina porque changeRoutine no es true');
       }
+
+      // Obtener la sesión actualizada con toda su información
+      const updatedSession = await Session.findByPk(sessionId, {
+        include: [
+          {
+            model: Routine,
+            as: 'routine',
+            attributes: ['id', 'name', 'description', 'userId'],
+            required: false
+          },
+          {
+            model: Exercise,
+            as: 'exercises',
+            through: {
+              model: ExerciseSession,
+              as: 'exerciseSession',
+              attributes: ['id', 'sessionId', 'exerciseId', 'order', 'createdAt', 'updatedAt']
+            },
+            attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
+          }
+        ]
+      });
+
+      // Obtener los ExerciseSessions con sus SetModels por separado
+      const exerciseSessions = await ExerciseSession.findAll({
+        where: { sessionId: sessionId },
+        include: [
+          {
+            model: SetModel,
+            as: 'sets',
+            attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+          }
+        ]
+      });
+
+      // Mapear los sets a los ejercicios
+      if (updatedSession && updatedSession.exercises) {
+        updatedSession.exercises.forEach(exercise => {
+          const exerciseSession = exerciseSessions.find(es => es.exerciseId === exercise.id);
+          if (exerciseSession && exerciseSession.sets) {
+            exercise.ExerciseSession = {
+              ...exercise.ExerciseSession,
+              sets: exerciseSession.sets
+            };
+          }
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Sesión actualizada exitosamente',
+        data: updatedSession
+      });
 
     } catch (error) {
       console.error('Error al actualizar sesión:', error);
@@ -558,9 +741,9 @@ export const sessionController = {
           transaction
         });
 
-        // Para cada ExerciseSession, eliminar sus Sets
+        // Para cada ExerciseSession, eliminar sus SetModels
         for (const exerciseSession of exerciseSessions) {
-          await Set.destroy({
+          await SetModel.destroy({
             where: { exerciseSessionId: exerciseSession.id },
             transaction
           });
