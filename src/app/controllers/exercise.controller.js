@@ -2,13 +2,22 @@ import { Exercise } from '../models/index.js';
 import { MuscleGroup } from '../models/index.js';
 import { User } from '../models/index.js';
 import { ExerciseRoutine, Routine, ExerciseSession, Session } from '../models/index.js';
-
+import { Op } from 'sequelize';
 export const exerciseController = {
     getAllExercises: (req, res) => {
       Exercise.findAll()
         .then(exercises => res.json({ exercises }))
         .catch(err => res.status(500).json({ error: err.message }));
     },
+
+    getExercisesFilteredByName: (req, res) => {
+      const { name } = req.query;
+      const whereClause = name ? { name: { [Op.iLike]: `%${name}%` } } : {};
+      Exercise.findAll({ where: whereClause })
+        .then(exercises => res.json({ exercises }))
+        .catch(err => res.status(500).json({ error: err.message }));
+    },
+
     getExercise: (req, res) => {
       const { id } = req.params;
       Exercise.findByPk(id, {

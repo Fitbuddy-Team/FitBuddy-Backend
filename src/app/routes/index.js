@@ -21,6 +21,7 @@ router.delete('/users/:userId', userController.deleteUser);
 
 // Exercises
 router.get('/exercises', exerciseController.getAllExercises);
+router.get('/exercises/search', exerciseController.getExercisesFilteredByName);
 router.get('/exercises/:id', exerciseController.getExercise);
 router.get('/exercises/category/:catId', exerciseController.getExercisesByCategory);
 router.get('/exercises/musclegroup/:groupId', exerciseController.getExercisesByMuscleGroup);
