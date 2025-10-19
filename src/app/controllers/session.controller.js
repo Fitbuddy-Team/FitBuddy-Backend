@@ -680,8 +680,8 @@ export const sessionController = {
 
       res.status(201).json({
         success: true,
-        message: 'Sesión creada exitosamente',
-        data: createdSession
+        message: `Sesión creada exitosamente. Puntos obtenidos: ${calculatedPoints}`,
+        data: createdSession,
       });
 
     } catch (error) {
