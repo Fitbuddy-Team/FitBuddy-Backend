@@ -16,6 +16,75 @@ async function createWithSequenceFallback(Model, data, options = {}) {
   }
 }
 
+/**
+ * Calcula los puntos de una sesión basándose en ejercicios, sets y duración
+ * @param {Array} exercises - Array de ejercicios con sus sets
+ * @param {Number} duration - Duración de la sesión en minutos
+ * @returns {Number} - Puntos calculados (0-20 aproximadamente)
+ */
+function calculateSessionPoints(exercises, duration) {
+  let points = 0;
+  
+  // 1. Puntos por ejercicios completados (1-2 puntos por ejercicio)
+  const totalExercises = exercises.length;
+  points += Math.min(totalExercises * 1.5, 8); // Máximo 8 puntos por ejercicios
+  
+  // 2. Puntos por sets completados con repeticiones
+  let completedSets = 0;
+  exercises.forEach(exercise => {
+    if (exercise.sets && Array.isArray(exercise.sets)) {
+      exercise.sets.forEach(set => {
+        // Un set cuenta si tiene reps y está completado
+        if (set.reps && set.reps > 0 && (!set.status || set.status === 'completed')) {
+          completedSets++;
+        }
+      });
+    }
+  });
+  
+  // 0.8 puntos por set completado, máximo 10 puntos
+  points += Math.min(completedSets * 0.8, 10);
+  
+  // 3. Puntos por duración (bonus/penalización)
+  if (duration) {
+    const durationPoints = calculateDurationPoints(duration);
+    points += durationPoints;
+  }
+  
+  // Asegurar que los puntos estén entre 0 y 20 y retornar como entero
+  return Math.max(0, Math.min(Math.round(points), 20));
+}
+
+/**
+ * Calcula puntos basándose en la duración de la sesión
+ * @param {Number} duration - Duración en minutos
+ * @returns {Number} - Puntos por duración (-3 a +3)
+ */
+function calculateDurationPoints(duration) {
+  // Ideal: 45 minutos a 2 horas (120 minutos)
+  const idealMin = 45;
+  const idealMax = 120;
+  
+  if (duration >= idealMin && duration <= idealMax) {
+    // Duración ideal: +3 puntos
+    return 3;
+  } else if (duration < 45) {
+    // Muy corta: penalización proporcional
+    // Menos de 20 min: -3 puntos
+    // Entre 20-44 min: -1 a -2 puntos
+    if (duration < 20) return -3;
+    if (duration < 30) return -2;
+    return -1;
+  } else {
+    // Muy larga: penalización proporcional
+    // Más de 2.5 horas (150 min): -3 puntos
+    // Entre 2-2.5 horas: -1 a -2 puntos
+    if (duration > 150) return -3;
+    if (duration > 135) return -2;
+    return -1;
+  }
+}
+
 export const sessionController = {
   // Obtener todas las sesiones de un usuario
   getAllSessions: async (req, res) => {
@@ -180,13 +249,17 @@ export const sessionController = {
         });
       }
 
+      // Calcular puntos de la sesión
+      const calculatedPoints = calculateSessionPoints(exercises, duration);
+      
       // Crear la sesión
       const session = await createWithSequenceFallback(Session, {
         userId: parseInt(userId),
         routineId: routineId ? parseInt(routineId) : null,
         date: new Date(),
         duration: duration || null,
-        status: status || 'completed'
+        status: status || 'completed',
+        points: calculatedPoints
       });
 
       // Crear los ExerciseSession y sus SetModels
@@ -311,7 +384,8 @@ export const sessionController = {
               },
               attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
             }
-          ]
+          ],
+          attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt']
         });
 
         // Obtener los ExerciseSessions con sus SetModels por separado
