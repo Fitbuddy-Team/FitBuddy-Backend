@@ -6,6 +6,7 @@ import { muscleGroupController } from '../controllers/musclegroups.controller.js
 import { exercisecategoryController } from '../controllers/exercisecategory.controller.js';
 import { routineController } from '../controllers/routine.controller.js';
 import { sessionController } from '../controllers/session.controller.js';
+import { groupController } from '../controllers/group.controller.js';
 import { leagueController } from '../controllers/league.controller.js';
 const router = Router();
 
@@ -51,6 +52,9 @@ router.put('/sessions/:sessionId', sessionController.updateSession);
 router.delete('/sessions/:sessionId', sessionController.deleteSession);
 router.get('/sessions/all/:userId', sessionController.getAllSessions);
 router.get('/sessions/:sessionId', sessionController.getSessionById);
+
+// Groups
+router.post('/groups/:userId', groupController.createGroup);
 
 // Leagues
 router.get('/league/user/:userId', leagueController.getUserLeague);
