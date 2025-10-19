@@ -53,6 +53,7 @@ module.exports = {
         date: new Date('2024-01-15T10:00:00Z'),
         duration: 75, // minutos
         status: 'completed',
+        points: 100,
         exercises: [
           { name: 'Barbell Bench Press - Medium Grip', order: 1, sets: [
             { reps: 10, weight: 55, restTime: 180, status: 'completed' },
@@ -82,6 +83,7 @@ module.exports = {
         date: new Date('2024-01-17T14:00:00Z'),
         duration: 90,
         status: 'completed',
+        points: 150,
         exercises: [
           { name: 'Barbell Squat', order: 1, sets: [
             { reps: 12, weight: 65, restTime: 240, status: 'completed' },
@@ -112,6 +114,7 @@ module.exports = {
         date: new Date('2024-01-19T08:00:00Z'),
         duration: 45,
         status: 'completed',
+        points: 50,
         exercises: [
           { name: 'Burpees', order: 1, sets: [
             { reps: 12, weight: 0, restTime: 90, status: 'completed' },
@@ -160,6 +163,7 @@ module.exports = {
           date: template.date,
           duration: template.duration,
           status: template.status,
+          points: template.points,
           createdAt: new Date(),
           updatedAt: new Date()
         });

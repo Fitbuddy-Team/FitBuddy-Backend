@@ -55,6 +55,10 @@ router.get('/sessions/:sessionId', sessionController.getSessionById);
 
 // Groups
 router.post('/groups/:userId', groupController.createGroup);
+router.post('/groups/join/:userId', groupController.joinGroup);
+router.delete('/groups/:groupId/member/:userId', groupController.leaveGroup);
+router.get('/groupRanking/:groupId/:userId', groupController.getGroupRanking);
+router.get('/groupTopSession/:groupId', groupController.getGroupTopSession);
 
 // Leagues
 router.get('/league/user/:userId', leagueController.getUserLeague);
