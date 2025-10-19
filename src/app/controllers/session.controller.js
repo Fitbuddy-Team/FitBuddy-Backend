@@ -17,12 +17,13 @@ async function createWithSequenceFallback(Model, data, options = {}) {
 }
 
 /**
- * Calcula los puntos de una sesión basándose en ejercicios, sets y duración
+ * Calcula los puntos de una sesión basándose en ejercicios, sets, duración y racha
  * @param {Array} exercises - Array de ejercicios con sus sets
  * @param {Number} duration - Duración de la sesión en minutos
- * @returns {Number} - Puntos calculados (0-20 aproximadamente)
+ * @param {Number} userId - ID del usuario para verificar racha
+ * @returns {Number} - Puntos calculados (0-21 base + bonus por racha)
  */
-function calculateSessionPoints(exercises, duration) {
+async function calculateSessionPoints(exercises, duration, userId) {
   let points = 0;
   
   // 1. Puntos por ejercicios completados (1-2 puntos por ejercicio)
@@ -51,8 +52,32 @@ function calculateSessionPoints(exercises, duration) {
     points += durationPoints;
   }
   
-  // Asegurar que los puntos estén entre 0 y 20 y retornar como entero
-  return Math.max(0, Math.min(Math.round(points), 20));
+  // 4. Bonus por racha: si la última sesión tuvo 21 o más puntos, sumar 1 punto adicional
+  const basePoints = Math.max(0, Math.min(Math.round(points), 21));
+  
+  if (userId && basePoints === 21) {
+    try {
+      // Buscar la última sesión del usuario
+      const lastSession = await Session.findOne({
+        where: { userId: parseInt(userId) },
+        order: [['date', 'DESC']],
+        attributes: ['points']
+      });
+
+      // Si la última sesión tuvo 21 o más puntos, agregar bonus de racha
+      if (lastSession && lastSession.points >= 21) {
+        const streakBonus = lastSession.points - 21 + 1; // Calcular bonus de racha
+        console.log(`🔥 Racha detectada! Usuario ${userId} obtiene ${basePoints} + ${streakBonus} = ${basePoints + streakBonus} puntos`);
+        return basePoints + streakBonus;
+      }
+    } catch (error) {
+      console.error('Error al verificar racha:', error);
+      // Si hay error, retornar puntos base sin racha
+    }
+  }
+  
+  // Retornar puntos base sin racha
+  return basePoints;
 }
 
 /**
@@ -485,8 +510,8 @@ export const sessionController = {
         });
       }
 
-      // Calcular puntos de la sesión
-      const calculatedPoints = calculateSessionPoints(exercises, duration);
+      // Calcular puntos de la sesión (con bonus por racha si aplica)
+      const calculatedPoints = await calculateSessionPoints(exercises, duration, userId);
       
       // Crear la sesión
       const session = await createWithSequenceFallback(Session, {
