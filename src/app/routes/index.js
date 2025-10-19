@@ -7,6 +7,7 @@ import { exercisecategoryController } from '../controllers/exercisecategory.cont
 import { routineController } from '../controllers/routine.controller.js';
 import { sessionController } from '../controllers/session.controller.js';
 import { groupController } from '../controllers/group.controller.js';
+import { leagueController } from '../controllers/league.controller.js';
 const router = Router();
 
 
@@ -54,6 +55,9 @@ router.get('/sessions/:sessionId', sessionController.getSessionById);
 
 // Groups
 router.post('/groups/:userId', groupController.createGroup);
+
+// Leagues
+router.get('/league/user/:userId', leagueController.getUserLeague);
 
 export default router;
 

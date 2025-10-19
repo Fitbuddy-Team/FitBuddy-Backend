@@ -34,6 +34,11 @@ export default (sequelize, DataTypes) => {
         foreignKey: 'userId', 
         as: 'memberships' 
       });
+      this.hasOne(models.LeagueMember, { 
+        foreignKey: 'userId', 
+        as: 'leagueMember', 
+        onDelete: 'CASCADE'
+      });
     }
   }
   User.init({
@@ -47,7 +52,25 @@ export default (sequelize, DataTypes) => {
     sequelize,
     modelName: 'User',
     tableName: 'Users',
-    timestamps: true
+    timestamps: true,
+    hooks: {
+      // Hook: al crear un usuario, asignarlo a la liga con menos puntos
+      async afterCreate(user, options) {
+        const { League, LeagueMember } = sequelize.models;
+
+        // Busca la liga con menor "minimumPoints"
+        const lowestLeague = await League.findOne({
+          order: [['minimumPoints', 'ASC']]
+        });
+
+        if (lowestLeague) {
+          await LeagueMember.create({
+            userId: user.id,
+            leagueId: lowestLeague.id,
+            points: 0
+          });
+        }}
+      }
   });
   return User;
 };
