@@ -53,6 +53,9 @@ router.delete('/sessions/:sessionId', sessionController.deleteSession);
 router.get('/sessions/all/:userId', sessionController.getAllSessions);
 router.get('/sessions/history/:userId', sessionController.getSessionHistory);
 router.get('/sessions/:sessionId', sessionController.getSessionById);
+router.get('/monthly-sessions/users/:userId', sessionController.getMonthlySessions);
+router.get('/users/:userId/sessions/weekly', sessionController.getWeeklySummary);
+
 
 // Groups
 router.post('/groups/:userId', groupController.createGroup);
@@ -60,6 +63,7 @@ router.post('/groups/join/:userId', groupController.joinGroup);
 router.delete('/groups/:groupId/member/:userId', groupController.leaveGroup);
 router.get('/groupRanking/:groupId/:userId', groupController.getGroupRanking);
 router.get('/groupTopSession/:groupId', groupController.getGroupTopSession);
+router.get('/groups/users/:userId', groupController.getUserGroups);
 
 // Leagues
 router.get('/league/user/:userId', leagueController.getUserLeague);

@@ -1,4 +1,5 @@
 import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, League, sequelize } from '../models/index.js';
+import { Op } from 'sequelize';
 
 // Función auxiliar para manejar errores de secuencia
 async function createWithSequenceFallback(Model, data, options = {}) {
@@ -1117,6 +1118,129 @@ export const sessionController = {
 
     } catch (error) {
       console.error('Error al eliminar sesión:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+  getMonthlySessions: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(400).json({ message: 'Se requiere userId' });
+      }
+
+      // Fecha actual y rango del mes
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      // Buscar sesiones del mes actual
+      const sessions = await Session.findAll({
+        where: {
+          userId,
+          date: {
+            [Op.between]: [firstDay, lastDay]
+          }
+        },
+        attributes: ['id', 'date', 'duration', 'status', 'points'],
+        order: [['date', 'ASC']]
+      });
+
+      // Calcular puntos totales del mes
+      const totalPoints = sessions.reduce((sum, s) => sum + (s.points || 0), 0);
+
+      // Formatear respuesta
+      res.status(200).json({
+        success: true,
+        userId,
+        month: now.toLocaleString('es-ES', { month: 'long', year: 'numeric' }),
+        totalSessions: sessions.length,
+        totalPoints,
+        sessions
+      });
+
+    } catch (error) {
+      console.error('Error al obtener sesiones del mes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+  getWeeklySummary: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(400).json({ message: 'Se requiere userId' });
+      }
+
+      // Fecha actual
+      const today = new Date();
+
+      // Obtener el lunes de la semana actual
+      const dayOfWeek = today.getDay(); // 0 = Domingo, 1 = Lunes...
+      const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+
+      // Domingo siguiente
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      // Buscar sesiones entre lunes y domingo
+      const sessions = await Session.findAll({
+        where: {
+          userId,
+          date: { [Op.between]: [monday, sunday] }
+        },
+        attributes: ['id', 'date', 'duration', 'points']
+      });
+
+      // Inicializar estructura semanal
+      const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+      const summary = weekDays.map(day => ({
+        day,
+        totalPoints: 0,
+        totalSessions: 0,
+        totalDuration: 0
+      }));
+
+      // Procesar sesiones
+      sessions.forEach(s => {
+        const date = new Date(s.date);
+        const jsDay = date.getDay(); // 0=Dom, 1=Lun, ...
+        const index = jsDay === 0 ? 6 : jsDay - 1; // Para comenzar en Lunes
+        summary[index].totalPoints += s.points || 0;
+        summary[index].totalSessions += 1;
+        summary[index].totalDuration += s.duration || 0;
+      });
+
+      // Totales semanales
+      const totalWeekPoints = summary.reduce((sum, d) => sum + d.totalPoints, 0);
+      const totalWeekSessions = summary.reduce((sum, d) => sum + d.totalSessions, 0);
+      const totalWeekDuration = summary.reduce((sum, d) => sum + d.totalDuration, 0);
+
+      return res.status(200).json({
+        success: true,
+        userId,
+        weekRange: `${monday.toLocaleDateString('es-ES')} - ${sunday.toLocaleDateString('es-ES')}`,
+        summary,
+        totals: {
+          totalWeekPoints,
+          totalWeekSessions,
+          totalWeekDuration
+        }
+      });
+    } catch (error) {
+      console.error('Error al obtener resumen semanal:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',

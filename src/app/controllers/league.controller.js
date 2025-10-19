@@ -5,30 +5,49 @@ export const leagueController = {
     
     getUserLeague: async (req, res) => {
         try {
-          const { userId } = req.params;
+            const { userId } = req.params;
 
-          const user = await User.findByPk(userId, {
-            include: {
-              model: LeagueMember,
-              as: 'leagueMember',
+            const user = await User.findByPk(userId, {
               include: {
-                model: League,
-                as: 'league',
+                model: LeagueMember,
+                as: 'leagueMember',
+                include: {
+                  model: League,
+                  as: 'league',
+                },
               },
-            },
-          });
+            });
 
-          if (!user) {
-            return res.status(404).json({ message: 'Usuario no encontrado' });
-          }
+            if (!user) {
+              return res.status(404).json({ message: 'Usuario no encontrado' });
+            }
 
-          // Si el usuario no tiene liga
-          if (!user.leagueMember || !user.leagueMember.league) {
-            return res.status(404).json({ message: 'El usuario no pertenece a ninguna liga' });
-          }
+            // Si el usuario no tiene liga
+            if (!user.leagueMember || !user.leagueMember.league) {
+              return res.status(404).json({ message: 'El usuario no pertenece a ninguna liga' });
+            }
 
-          // Retornar la liga
-          return res.json(user.leagueMember.league);
+            const userLeague = user.leagueMember.league;
+
+            // 🔍 Obtener todos los miembros de la liga ordenados por puntos
+            const members = await LeagueMember.findAll({
+              where: { leagueId: userLeague.id },
+              order: [['points', 'DESC']],
+              include: [{ model: User, as: 'user', attributes: ['id', 'name'] }]
+            });
+        
+            // 🔢 Calcular posición del usuario
+            const userIndex = members.findIndex(m => m.userId === parseInt(userId));
+            const userPosition = userIndex >= 0 ? userIndex + 1 : null;
+
+            return res.json({
+                id: userLeague.id,
+                name: userLeague.name,
+                minimumPoints: userLeague.minimumPoints,
+                maximumPoints: userLeague.maximumPoints,
+                totalMembers: members.length,
+                position : userPosition
+});
 
         } catch (error) {
           console.error('Error al obtener la liga del usuario:', error);
