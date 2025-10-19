@@ -1,4 +1,4 @@
-import { User, LeagueMember, League, Session } from '../models/index.js';
+import { User, LeagueMember, League, Session, Exercise, ExerciseSession, Set as SetModel } from '../models/index.js';
 
 
 export const leagueController = {
@@ -110,14 +110,84 @@ export const leagueController = {
             });
           }
 
-          // Para cada jugador, obtener sus numSessions últimas sesiones
+          // Para cada jugador, obtener sus numSessions últimas sesiones con ejercicios
           const playersWithSessions = await Promise.all(
             topPlayers.map(async (player) => {
+              // Obtener las sesiones con ejercicios
               const sessions = await Session.findAll({
                 where: { userId: player.userId },
+                include: [
+                  {
+                    model: Exercise,
+                    as: 'exercises',
+                    through: {
+                      model: ExerciseSession,
+                      as: 'exerciseSession',
+                      attributes: ['id', 'sessionId', 'exerciseId', 'order']
+                    },
+                    attributes: ['id', 'name'],
+                    required: false
+                  }
+                ],
                 attributes: ['id', 'date', 'duration', 'status', 'points'],
                 order: [['date', 'DESC']],
                 limit: parseInt(numSessions)
+              });
+
+              // Obtener los IDs de las sesiones
+              const sessionIds = sessions.map(s => s.id);
+              
+              // Obtener todos los ExerciseSessions con sus Sets
+              const exerciseSessions = await ExerciseSession.findAll({
+                where: { sessionId: sessionIds },
+                include: [
+                  {
+                    model: SetModel,
+                    as: 'sets',
+                    attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+                  }
+                ]
+              });
+
+              // Crear un mapa de sets por exerciseSessionId
+              const setsByExerciseSessionId = {};
+              exerciseSessions.forEach(es => {
+                setsByExerciseSessionId[es.id] = es.sets || [];
+              });
+
+              // Formatear las sesiones con ejercicios
+              const formattedSessions = sessions.map(session => {
+                const sessionData = {
+                  id: session.id,
+                  date: session.date,
+                  duration: session.duration,
+                  status: session.status,
+                  points: session.points,
+                  exercises: []
+                };
+
+                // Procesar ejercicios de la sesión
+                if (session.exercises && session.exercises.length > 0) {
+                  session.exercises.forEach(exercise => {
+                    const exerciseSession = exercise.exerciseSession;
+                    if (!exerciseSession) return;
+
+                    // Obtener los sets para este exerciseSession
+                    const sets = setsByExerciseSessionId[exerciseSession.id] || [];
+                    
+                    // Calcular número de sets y repeticiones totales
+                    const numSets = sets.length;
+                    const totalReps = sets.reduce((sum, set) => sum + (set.reps || 0), 0);
+
+                    sessionData.exercises.push({
+                      name: exercise.name,
+                      numSets: numSets,
+                      totalReps: totalReps
+                    });
+                  });
+                }
+
+                return sessionData;
               });
 
               return {
@@ -131,13 +201,7 @@ export const leagueController = {
                   minimumPoints: userLeague.minimumPoints,
                   maximumPoints: userLeague.maximumPoints
                 },
-                sessions: sessions.map(session => ({
-                  id: session.id,
-                  date: session.date,
-                  duration: session.duration,
-                  status: session.status,
-                  points: session.points
-                }))
+                sessions: formattedSessions
               };
             })
           );

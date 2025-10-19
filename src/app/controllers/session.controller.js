@@ -398,7 +398,7 @@ export const sessionController = {
         // Procesar ejercicios de la sesión
         if (session.exercises && session.exercises.length > 0) {
           session.exercises.forEach(exercise => {
-            const exerciseSession = exercise.ExerciseSession;
+            const exerciseSession = exercise.exerciseSession;
             if (!exerciseSession) return;
 
             // Obtener los sets para este exerciseSession
