@@ -1,4 +1,4 @@
-import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, sequelize } from '../models/index.js';
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, sequelize } from '../models/index.js';
 
 // Función auxiliar para manejar errores de secuencia
 async function createWithSequenceFallback(Model, data, options = {}) {
@@ -82,6 +82,42 @@ function calculateDurationPoints(duration) {
     if (duration > 150) return -3;
     if (duration > 135) return -2;
     return -1;
+  }
+}
+
+/**
+ * Actualiza los puntos de un usuario en todas sus ligas
+ * @param {Number} userId - ID del usuario
+ * @param {Number} points - Puntos a sumar
+ */
+async function updateLeagueMemberPoints(userId, points) {
+  try {
+    await LeagueMember.increment('points', {
+      by: points,
+      where: { userId: parseInt(userId) }
+    });
+    console.log(`Puntos actualizados en LeagueMembers para usuario ${userId}: +${points}`);
+  } catch (error) {
+    console.error('Error al actualizar puntos en LeagueMembers:', error);
+    // No lanzar error para no fallar la creación de sesión
+  }
+}
+
+/**
+ * Actualiza los puntos de un usuario en todos sus grupos
+ * @param {Number} userId - ID del usuario
+ * @param {Number} points - Puntos a sumar
+ */
+async function updateGroupMemberPoints(userId, points) {
+  try {
+    await GroupMember.increment('points', {
+      by: points,
+      where: { userId: parseInt(userId) }
+    });
+    console.log(`Puntos actualizados en GroupMembers para usuario ${userId}: +${points}`);
+  } catch (error) {
+    console.error('Error al actualizar puntos en GroupMembers:', error);
+    // No lanzar error para no fallar la creación de sesión
   }
 }
 
@@ -288,6 +324,10 @@ export const sessionController = {
           }
         }
       }
+
+      // Actualizar puntos en LeagueMembers y GroupMembers
+      await updateLeagueMemberPoints(userId, calculatedPoints);
+      await updateGroupMemberPoints(userId, calculatedPoints);
 
       // Si changeRoutine es true, actualizar la rutina
       // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
