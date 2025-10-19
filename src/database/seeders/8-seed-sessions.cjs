@@ -1,5 +1,61 @@
 'use strict';
 
+// Función auxiliar para calcular puntos de una sesión (sin racha)
+function calculateSessionPoints(exercises, duration) {
+  let points = 0;
+  
+  // 1. Puntos por ejercicios completados (1-2 puntos por ejercicio)
+  const totalExercises = exercises.length;
+  points += Math.min(totalExercises * 1.5, 8); // Máximo 8 puntos por ejercicios
+  
+  // 2. Puntos por sets completados con repeticiones
+  let completedSets = 0;
+  exercises.forEach(exercise => {
+    if (exercise.sets && Array.isArray(exercise.sets)) {
+      exercise.sets.forEach(set => {
+        // Un set cuenta si tiene reps y está completado
+        if (set.reps && set.reps > 0 && (!set.status || set.status === 'completed')) {
+          completedSets++;
+        }
+      });
+    }
+  });
+  
+  // 0.8 puntos por set completado, máximo 10 puntos
+  points += Math.min(completedSets * 0.8, 10);
+  
+  // 3. Puntos por duración (bonus/penalización)
+  if (duration) {
+    const durationPoints = calculateDurationPoints(duration);
+    points += durationPoints;
+  }
+  
+  // Retornar puntos base sin racha
+  return Math.max(0, Math.min(Math.round(points), 21));
+}
+
+// Función auxiliar para calcular puntos por duración
+function calculateDurationPoints(duration) {
+  // Ideal: 45 minutos a 2 horas (120 minutos)
+  const idealMin = 45;
+  const idealMax = 120;
+  
+  if (duration >= idealMin && duration <= idealMax) {
+    // Duración ideal: +3 puntos
+    return 3;
+  } else if (duration < 45) {
+    // Muy corta: penalización proporcional
+    if (duration < 20) return -3;
+    if (duration < 30) return -2;
+    return -1;
+  } else {
+    // Muy larga: penalización proporcional
+    if (duration > 150) return -3;
+    if (duration > 135) return -2;
+    return -1;
+  }
+}
+
 module.exports = {
   async up (queryInterface) {
     // Obtener usuarios existentes
@@ -53,7 +109,6 @@ module.exports = {
         date: new Date('2024-01-15T10:00:00Z'),
         duration: 75, // minutos
         status: 'completed',
-        points: 100,
         exercises: [
           { name: 'Barbell Bench Press - Medium Grip', order: 1, sets: [
             { reps: 10, weight: 55, restTime: 180, status: 'completed' },
@@ -83,7 +138,6 @@ module.exports = {
         date: new Date('2024-01-17T14:00:00Z'),
         duration: 90,
         status: 'completed',
-        points: 150,
         exercises: [
           { name: 'Barbell Squat', order: 1, sets: [
             { reps: 12, weight: 65, restTime: 240, status: 'completed' },
@@ -114,7 +168,6 @@ module.exports = {
         date: new Date('2024-01-19T08:00:00Z'),
         duration: 45,
         status: 'completed',
-        points: 50,
         exercises: [
           { name: 'Burpees', order: 1, sets: [
             { reps: 12, weight: 0, restTime: 90, status: 'completed' },
@@ -155,6 +208,9 @@ module.exports = {
           routineId = userRoutines[templateIndex % userRoutines.length].id;
         }
 
+        // Calcular puntos de la sesión
+        const calculatedPoints = calculateSessionPoints(template.exercises, template.duration);
+
         // Crear sesión
         sessions.push({
           id: sessionId,
@@ -163,7 +219,7 @@ module.exports = {
           date: template.date,
           duration: template.duration,
           status: template.status,
-          points: template.points,
+          points: calculatedPoints,
           createdAt: new Date(),
           updatedAt: new Date()
         });
