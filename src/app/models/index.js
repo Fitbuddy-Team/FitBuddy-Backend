@@ -12,6 +12,8 @@ import SetModel from './set.js';
 import UserModel from './user.js';
 import ExerciseRoutineModel from './exerciseroutine.js';
 import ExerciseSessionModel from './exercisesession.js';
+import GroupModel from './group.model.js';
+import GroupMemberModel from './groupMember.model.js';
 
 const dbConfig = config.database;
 
@@ -39,6 +41,8 @@ const Set = SetModel(sequelize, DataTypes);
 const User = UserModel(sequelize, DataTypes);
 const ExerciseRoutine = ExerciseRoutineModel(sequelize, DataTypes);
 const ExerciseSession = ExerciseSessionModel(sequelize, DataTypes);
+const Group = GroupModel(sequelize, DataTypes);
+const GroupMember = GroupMemberModel(sequelize, DataTypes);
 
 // Asociaciones
 Exercise.associate?.({ ExerciseCategory, User, MuscleGroup, Routine, ExerciseMuscleGroup, ExerciseRoutine });
@@ -51,6 +55,8 @@ Set.associate?.({ ExerciseRoutine, ExerciseSession });
 User.associate?.({ Routine, Session, Exercise });
 ExerciseRoutine.associate?.({ Routine, Exercise, Set });
 ExerciseSession.associate?.({ Session, Exercise, Set });
+Group.associate?.({ GroupMember });
+GroupMember.associate?.({ Group, User });
 
 export {
   sequelize,
@@ -63,5 +69,7 @@ export {
   Set,
   User,
   ExerciseRoutine,
-  ExerciseSession
+  ExerciseSession,
+  Group,
+  GroupMember
 };
