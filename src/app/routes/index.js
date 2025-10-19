@@ -51,6 +51,7 @@ router.post('/sessions', sessionController.createSession);
 router.put('/sessions/:sessionId', sessionController.updateSession);
 router.delete('/sessions/:sessionId', sessionController.deleteSession);
 router.get('/sessions/all/:userId', sessionController.getAllSessions);
+router.get('/sessions/history/:userId', sessionController.getSessionHistory);
 router.get('/sessions/:sessionId', sessionController.getSessionById);
 
 // Groups

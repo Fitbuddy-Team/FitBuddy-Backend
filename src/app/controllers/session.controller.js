@@ -279,6 +279,137 @@ export const sessionController = {
     }
   },
 
+  // Obtener historial detallado de sesiones de un usuario
+  getSessionHistory: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Validar que userId sea un número
+      if (!userId || isNaN(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de usuario inválido'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      // Buscar todas las sesiones del usuario con información de la rutina y ejercicios
+      const sessions = await Session.findAll({
+        where: {
+          userId: parseInt(userId)
+        },
+        include: [
+          {
+            model: Routine,
+            as: 'routine',
+            attributes: ['id', 'name', 'description'],
+            required: false
+          },
+          {
+            model: Exercise,
+            as: 'exercises',
+            through: {
+              model: ExerciseSession,
+              as: 'exerciseSession',
+              attributes: ['id', 'sessionId', 'exerciseId', 'order']
+            },
+            attributes: ['id', 'name'],
+            required: false
+          }
+        ],
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt'],
+        order: [['date', 'DESC']]
+      });
+
+      // Verificar si hay sesiones para el usuario
+      if (sessions.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontraron sesiones para el usuario especificado'
+        });
+      }
+
+      // Obtener todos los ExerciseSessions con sus Sets
+      const sessionIds = sessions.map(s => s.id);
+      const exerciseSessions = await ExerciseSession.findAll({
+        where: { sessionId: sessionIds },
+        include: [
+          {
+            model: SetModel,
+            as: 'sets',
+            attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+          }
+        ]
+      });
+
+      // Crear un mapa de sets por exerciseSessionId
+      const setsByExerciseSessionId = {};
+      exerciseSessions.forEach(es => {
+        setsByExerciseSessionId[es.id] = es.sets || [];
+      });
+
+      // Formatear la respuesta
+      const formattedSessions = sessions.map(session => {
+        const sessionData = {
+          id: session.id,
+          routineName: session.routine ? session.routine.name : null,
+          duration: session.duration,
+          routineDescription: session.routine ? session.routine.description : null,
+          points: session.points,
+          date: session.date,
+          status: session.status,
+          exercises: []
+        };
+
+        // Procesar ejercicios de la sesión
+        if (session.exercises && session.exercises.length > 0) {
+          session.exercises.forEach(exercise => {
+            const exerciseSession = exercise.ExerciseSession;
+            if (!exerciseSession) return;
+
+            // Obtener los sets para este exerciseSession
+            const sets = setsByExerciseSessionId[exerciseSession.id] || [];
+            
+            // Calcular número de sets y repeticiones totales
+            const numSets = sets.length;
+            const totalReps = sets.reduce((sum, set) => sum + (set.reps || 0), 0);
+
+            sessionData.exercises.push({
+              name: exercise.name,
+              numSets: numSets,
+              totalReps: totalReps
+            });
+          });
+        }
+
+        return sessionData;
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Historial de sesiones obtenido exitosamente',
+        data: formattedSessions,
+        count: formattedSessions.length
+      });
+
+    } catch (error) {
+      console.error('Error al obtener historial de sesiones:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+
   // Crear una nueva sesión de entrenamiento
   // changeRoutine por defecto es false, solo actualiza la rutina si se especifica explícitamente true
   createSession: async (req, res) => {
