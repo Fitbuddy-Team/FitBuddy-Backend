@@ -1,4 +1,4 @@
-import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, sequelize } from '../models/index.js';
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, League, sequelize } from '../models/index.js';
 
 // Función auxiliar para manejar errores de secuencia
 async function createWithSequenceFallback(Model, data, options = {}) {
@@ -86,17 +86,85 @@ function calculateDurationPoints(duration) {
 }
 
 /**
- * Actualiza los puntos de un usuario en todas sus ligas
+ * Actualiza los puntos de un usuario en todas sus ligas y maneja promoción/degradación
  * @param {Number} userId - ID del usuario
- * @param {Number} points - Puntos a sumar
+ * @param {Number} pointsToAdd - Puntos a sumar
  */
-async function updateLeagueMemberPoints(userId, points) {
+async function updateLeagueMemberPoints(userId, pointsToAdd) {
   try {
-    await LeagueMember.increment('points', {
-      by: points,
-      where: { userId: parseInt(userId) }
+    // Obtener todas las ligas ordenadas por puntos mínimos
+    const leagues = await League.findAll({
+      order: [['minimumPoints', 'ASC']]
     });
-    console.log(`Puntos actualizados en LeagueMembers para usuario ${userId}: +${points}`);
+
+    if (leagues.length === 0) {
+      console.log('No hay ligas disponibles');
+      return;
+    }
+
+    // Obtener todos los LeagueMembers del usuario
+    const userLeagueMembers = await LeagueMember.findAll({
+      where: { userId: parseInt(userId) },
+      include: [{
+        model: League,
+        as: 'league'
+      }]
+    });
+
+    if (userLeagueMembers.length === 0) {
+      console.log(`Usuario ${userId} no está en ninguna liga`);
+      return;
+    }
+
+    // Procesar cada LeagueMember del usuario
+    for (const member of userLeagueMembers) {
+      const currentLeague = member.league;
+      let newPoints = member.points + pointsToAdd;
+      
+      // Determinar la liga correcta basándose en los nuevos puntos
+      let targetLeague = null;
+      
+      // Buscar la liga apropiada para los nuevos puntos
+      for (const league of leagues) {
+        if (newPoints >= league.minimumPoints && newPoints <= league.maximumPoints) {
+          targetLeague = league;
+          break;
+        }
+      }
+
+      // Si no se encuentra una liga, verificar si supera el máximo de la última liga
+      if (!targetLeague) {
+        const lastLeague = leagues[leagues.length - 1];
+        const firstLeague = leagues[0];
+        
+        // Si supera el máximo de la última liga, puede seguir acumulando puntos
+        if (newPoints > lastLeague.maximumPoints) {
+          targetLeague = lastLeague;
+          console.log(`Usuario ${userId} alcanzó el máximo de ${lastLeague.name} pero continúa acumulando puntos (${newPoints} puntos)`);
+        } 
+        // Si baja del mínimo de la primera liga, asignar el mínimo de la primera liga
+        else if (newPoints < firstLeague.minimumPoints) {
+          targetLeague = firstLeague;
+          newPoints = firstLeague.minimumPoints; // Ajustar puntos al mínimo
+          console.log(`Usuario ${userId} bajó del mínimo de ${firstLeague.name}, puntos ajustados a ${firstLeague.minimumPoints}`);
+        }
+      }
+
+      // Actualizar el LeagueMember
+      await member.update({
+        points: newPoints,
+        leagueId: targetLeague.id
+      });
+
+      // Log si cambió de liga
+      if (currentLeague.id !== targetLeague.id) {
+        const isPromotion = currentLeague.minimumPoints < targetLeague.minimumPoints;
+        const action = isPromotion ? 'promovido' : 'degradado';
+        console.log(`Usuario ${userId} ${action} de ${currentLeague.name} a ${targetLeague.name} (${member.points} -> ${newPoints} puntos)`);
+      } else {
+        console.log(`Puntos actualizados en LeagueMembers para usuario ${userId}: ${member.points} -> ${newPoints} (Liga: ${currentLeague.name})`);
+      }
+    }
   } catch (error) {
     console.error('Error al actualizar puntos en LeagueMembers:', error);
     // No lanzar error para no fallar la creación de sesión
