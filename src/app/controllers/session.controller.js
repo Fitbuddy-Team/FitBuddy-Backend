@@ -225,7 +225,7 @@ export const sessionController = {
             required: false // LEFT JOIN para incluir sesiones sin rutina
           }
         ],
-        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt'],
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt'],
         order: [['date', 'DESC']] // Ordenar por fecha más reciente primero
       });
 
@@ -246,6 +246,7 @@ export const sessionController = {
           date: session.date,
           duration: session.duration,
           status: session.status,
+          points: session.points,
           createdAt: session.createdAt,
           updatedAt: session.updatedAt
         };
@@ -701,7 +702,7 @@ export const sessionController = {
             attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
           }
         ],
-        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt']
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt']
       });
 
       // Obtener los sets por separado para evitar problemas de asociación
@@ -737,6 +738,7 @@ export const sessionController = {
         date: session.date,
         duration: session.duration,
         status: session.status,
+        points: session.points,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
         routine: session.routine ? {
