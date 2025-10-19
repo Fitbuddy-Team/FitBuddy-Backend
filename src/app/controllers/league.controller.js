@@ -110,13 +110,13 @@ export const leagueController = {
             });
           }
 
-          // Para cada jugador, obtener sus numSessions mejores sesiones
+          // Para cada jugador, obtener sus numSessions últimas sesiones
           const playersWithSessions = await Promise.all(
             topPlayers.map(async (player) => {
               const sessions = await Session.findAll({
                 where: { userId: player.userId },
                 attributes: ['id', 'date', 'duration', 'status', 'points'],
-                order: [['points', 'DESC']],
+                order: [['date', 'DESC']],
                 limit: parseInt(numSessions)
               });
 
@@ -144,7 +144,7 @@ export const leagueController = {
 
           res.status(200).json({
             success: true,
-            message: `Top ${N} jugadores de la liga ${userLeague.name} con sus ${numSessions} mejores sesiones`,
+            message: `Top ${N} jugadores de la liga ${userLeague.name} con sus ${numSessions} últimas sesiones`,
             data: {
               league: {
                 id: userLeague.id,
