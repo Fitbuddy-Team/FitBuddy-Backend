@@ -314,6 +314,80 @@ export const groupController = {
         return res.status(500).json({ message: err.message });
       }
     },
-};
+    
+    getUserGroups: async (req, res) => {
+      try {
+        const { userId } = req.params;
+      
+        // Verificar existencia del usuario
+        const userExists = await User.findByPk(userId);
+        if (!userExists) {
+          return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+      
+        // Buscar los grupos donde participa este usuario
+        const memberships = await GroupMember.findAll({
+          where: { userId },
+          include: [{
+            model: Group,
+            as: 'group',
+            attributes: ['id', 'name']
+          }]
+        });
+      
+        if (memberships.length === 0) {
+          return res.status(200).json({
+            userId,
+            groups: [],
+            message: 'El usuario no pertenece a ningún grupo.'
+          });
+        }
+      
+        // Obtener todos los grupos y sus miembros
+        const groupIds = memberships.map(m => m.groupId);
+      
+        const groups = await Group.findAll({
+          where: { id: groupIds },
+          attributes: ['id', 'name', 'description'],
+          include: [{
+            model: GroupMember,
+            as: 'members',
+            include: [{
+              model: User,
+              as: 'user',
+              attributes: ['id', 'name', 'email']
+            }]
+          }]
+        });
+      
+        // Formatear respuesta
+        const formattedGroups = groups.map(g => ({
+          id: g.id,
+          name: g.name,
+          description: g.description,
+          members: g.members.map(m => ({
+            userId: m.user.id,
+            name: m.user.name,
+            email: m.user.email,
+            points: m.points
+          }))
+        }));
+      
+        return res.status(200).json({
+          success: true,
+          userId,
+          totalGroups: formattedGroups.length,
+          groups: formattedGroups
+        });
+      } catch (error) {
+        console.error('Error al obtener los grupos del usuario:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Error interno del servidor',
+          error: error.message
+        });
+      }
+    },    
+};    
 
 export default groupController;
