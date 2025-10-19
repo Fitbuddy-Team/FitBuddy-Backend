@@ -267,9 +267,32 @@ module.exports = {
     await queryInterface.bulkInsert('Sessions', sessions);
     await queryInterface.bulkInsert('ExerciseSessions', exerciseSessions);
     await queryInterface.bulkInsert('Sets', sets);
+
+    // Actualizar puntos en LeagueMember para cada usuario
+    const pointsByUser = {};
+    sessions.forEach(session => {
+      if (!pointsByUser[session.userId]) {
+        pointsByUser[session.userId] = 0;
+      }
+      pointsByUser[session.userId] += session.points;
+    });
+
+    // Actualizar LeagueMember con los puntos totales
+    for (const [userId, totalPoints] of Object.entries(pointsByUser)) {
+      await queryInterface.sequelize.query(
+        `UPDATE "LeagueMembers" SET points = points + :totalPoints WHERE "userId" = :userId`,
+        {
+          replacements: { totalPoints, userId: parseInt(userId) },
+          type: queryInterface.sequelize.QueryTypes.UPDATE
+        }
+      );
+    }
+
+    console.log('✅ Puntos actualizados en LeagueMembers para todos los usuarios');
   },
 
   async down (queryInterface) {
+    // Eliminar datos
     await queryInterface.bulkDelete('Sets', null, {});
     await queryInterface.bulkDelete('ExerciseSessions', null, {});
     await queryInterface.bulkDelete('Sessions', null, {});
