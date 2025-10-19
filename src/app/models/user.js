@@ -23,6 +23,17 @@ export default (sequelize, DataTypes) => {
         onDelete: 'SET NULL',
         hooks: true 
       });
+      // Un usuario puede pertenecer a muchos grupos (a través de GroupMember)
+      this.belongsToMany(models.Group, {
+        through: models.GroupMember,
+        foreignKey: 'userId',
+        otherKey: 'groupId',
+        as: 'groups'
+      });
+      this.hasMany(models.GroupMember, { 
+        foreignKey: 'userId', 
+        as: 'memberships' 
+      });
     }
   }
   User.init({

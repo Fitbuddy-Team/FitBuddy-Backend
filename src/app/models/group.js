@@ -4,11 +4,16 @@ import { Model } from 'sequelize';
 export default (sequelize, DataTypes) => {
     class Group extends Model {
         static associate(models) {
+            // Un grupo tiene uno o muchos miembros (a través de GroupMember)
             this.belongsToMany(models.User, {
                 through: models.GroupMember,
                 foreignKey: 'groupId',
                 otherKey: 'userId',
                 as: 'users'
+            });
+            this.hasMany(models.GroupMember, { 
+                foreignKey: 'groupId', 
+                as: 'members' 
             });
         }
     }

@@ -12,8 +12,8 @@ import SetModel from './set.js';
 import UserModel from './user.js';
 import ExerciseRoutineModel from './exerciseroutine.js';
 import ExerciseSessionModel from './exercisesession.js';
-import GroupModel from './group.model.js';
-import GroupMemberModel from './groupMember.model.js';
+import GroupModel from './group.js';
+import GroupMemberModel from './groupmember.js';
 
 const dbConfig = config.database;
 
@@ -51,11 +51,11 @@ ExerciseMuscleGroup.associate?.({ Exercise, MuscleGroup });
 MuscleGroup.associate?.({ Exercise, ExerciseMuscleGroup });
 Routine.associate?.({ User, Exercise, ExerciseRoutine });
 Session.associate?.({ User, Routine, Exercise, ExerciseSession });
-User.associate?.({ Routine, Session, Exercise });
+User.associate?.({ Routine, Session, Exercise, Group, GroupMember });
 Set.associate?.({ ExerciseRoutine, ExerciseSession });
 ExerciseRoutine.associate?.({ Routine, Exercise, Set });
 ExerciseSession.associate?.({ Session, Exercise, Set });
-Group.associate?.({ GroupMember });
+Group.associate?.({ GroupMember, User });
 GroupMember.associate?.({ Group, User });
 
 export {
