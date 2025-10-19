@@ -63,6 +63,7 @@ router.get('/groupTopSession/:groupId', groupController.getGroupTopSession);
 
 // Leagues
 router.get('/league/user/:userId', leagueController.getUserLeague);
+router.get('/league/top/:N/:numSessions/:userId', leagueController.getTopPlayersSessions);
 
 export default router;
 
