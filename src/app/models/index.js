@@ -12,6 +12,8 @@ import SetModel from './set.js';
 import UserModel from './user.js';
 import ExerciseRoutineModel from './exerciseroutine.js';
 import ExerciseSessionModel from './exercisesession.js';
+import LeagueModel from './league.js';
+import LeagueMemberModel from './leaguemember.js';
 
 const dbConfig = config.database;
 
@@ -39,6 +41,8 @@ const Set = SetModel(sequelize, DataTypes);
 const User = UserModel(sequelize, DataTypes);
 const ExerciseRoutine = ExerciseRoutineModel(sequelize, DataTypes);
 const ExerciseSession = ExerciseSessionModel(sequelize, DataTypes);
+const League = LeagueModel(sequelize, DataTypes);
+const LeagueMember = LeagueMemberModel(sequelize, DataTypes);
 
 // Asociaciones
 Exercise.associate?.({ ExerciseCategory, User, MuscleGroup, Routine, ExerciseMuscleGroup, ExerciseRoutine });
@@ -47,10 +51,12 @@ ExerciseMuscleGroup.associate?.({ Exercise, MuscleGroup });
 MuscleGroup.associate?.({ Exercise, ExerciseMuscleGroup });
 Routine.associate?.({ User, Exercise, ExerciseRoutine });
 Session.associate?.({ User, Routine, Exercise, ExerciseSession });
-User.associate?.({ Routine, Session, Exercise });
+User.associate?.({ Routine, Session, Exercise, LeagueMember });
 Set.associate?.({ ExerciseRoutine, ExerciseSession });
 ExerciseRoutine.associate?.({ Routine, Exercise, Set });
 ExerciseSession.associate?.({ Session, Exercise, Set });
+League.associate?.({ LeagueMember });
+LeagueMember.associate?.({ User, League });
 
 export {
   sequelize,
@@ -63,5 +69,7 @@ export {
   Set,
   User,
   ExerciseRoutine,
-  ExerciseSession
+  ExerciseSession,
+  League,
+  LeagueMember
 };
