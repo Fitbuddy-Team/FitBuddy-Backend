@@ -13,7 +13,6 @@ export default (sequelize, DataTypes) => {
     routineId: { type: DataTypes.INTEGER, allowNull: false },
     exerciseId: { type: DataTypes.INTEGER, allowNull: false },
     order: { type: DataTypes.INTEGER },
-    status: { type: DataTypes.STRING }
   }, {
     sequelize,
     modelName: 'ExerciseRoutine',
