@@ -51,6 +51,7 @@ router.post('/sessions', sessionController.createSession);
 router.put('/sessions/:sessionId', sessionController.updateSession);
 router.delete('/sessions/:sessionId', sessionController.deleteSession);
 router.get('/sessions/all/:userId', sessionController.getAllSessions);
+router.get('/sessions/history/:userId', sessionController.getSessionHistory);
 router.get('/sessions/:sessionId', sessionController.getSessionById);
 
 // Groups
@@ -62,6 +63,7 @@ router.get('/groupTopSession/:groupId', groupController.getGroupTopSession);
 
 // Leagues
 router.get('/league/user/:userId', leagueController.getUserLeague);
+router.get('/league/top/:N/:numSessions/:userId', leagueController.getTopPlayersSessions);
 
 export default router;
 

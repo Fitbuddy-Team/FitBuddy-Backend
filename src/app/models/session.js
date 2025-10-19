@@ -25,7 +25,8 @@ export default (sequelize, DataTypes) => {
     routineId: { type: DataTypes.INTEGER, allowNull: true },
     date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     duration: { type: DataTypes.INTEGER }, // en minutos
-    status: { type: DataTypes.STRING }
+    status: { type: DataTypes.STRING },
+    points: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
   }, {
     sequelize,
     modelName: 'Session',
