@@ -239,12 +239,23 @@ export const groupController = {
         });
 
         // Obtener la última session del miembro top (por fecha o createdAt)
-        let session = await Session.findOne({
-          where: { userId: Number(topMember.userId) },
-          order: [['date', 'DESC']],
-          attributes: ['id', 'date', 'duration', 'points'],
-          transaction: t
-        });
+        const sessionRows = await sequelize.query(
+          `SELECT id, date, duration, points, "createdAt"
+           FROM "Sessions"
+           WHERE "userId" = :userId
+           ORDER BY date DESC
+           LIMIT 1`,
+          { replacements: { userId: Number(topMember.userId) }, type: sequelize.QueryTypes.SELECT, transaction: t }
+        );
+        const sessionRow = sessionRows && sessionRows.length ? sessionRows[0] : null;
+        const session = sessionRow
+          ? {
+              id: sessionRow.id,
+              date: sessionRow.date || sessionRow.createdAt || null,
+              duration: sessionRow.duration || null,
+              points: Number(sessionRow.points) || 0
+            }
+          : null;
 
         // si no encontró por 'date', intentar por createdAt (por compatibilidad)
         if (!session) {
@@ -308,6 +319,28 @@ export const groupController = {
               }
             : null,
           exercises
+        });
+      } catch (err) {
+        await t.rollback();
+        return res.status(500).json({ message: err.message });
+      }
+    },
+
+    getGroupInfo: async (req, res) => {
+      const { groupId } = req.params;
+      const t = await sequelize.transaction();
+      try {
+        const group = await Group.findByPk(Number(groupId), { transaction: t });
+        if (!group) {
+          await t.rollback();
+          return res.status(404).json({ message: 'Grupo no encontrado.' });
+        }
+
+        await t.commit();
+        return res.status(200).json({
+          id: group.id,
+          name: group.name,
+          code: group.code
         });
       } catch (err) {
         await t.rollback();
