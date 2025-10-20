@@ -1,4 +1,5 @@
-import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, sequelize } from '../models/index.js';
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, League, sequelize } from '../models/index.js';
+import { Op } from 'sequelize';
 
 // Función auxiliar para manejar errores de secuencia
 async function createWithSequenceFallback(Model, data, options = {}) {
@@ -13,6 +14,204 @@ async function createWithSequenceFallback(Model, data, options = {}) {
       }, options);
     }
     throw error;
+  }
+}
+
+/**
+ * Calcula los puntos de una sesión basándose en ejercicios, sets, duración y racha
+ * @param {Array} exercises - Array de ejercicios con sus sets
+ * @param {Number} duration - Duración de la sesión en minutos
+ * @param {Number} userId - ID del usuario para verificar racha
+ * @returns {Number} - Puntos calculados (0-21 base + bonus por racha)
+ */
+async function calculateSessionPoints(exercises, duration, userId) {
+  let points = 0;
+  
+  // 1. Puntos por ejercicios completados (1-2 puntos por ejercicio)
+  const totalExercises = exercises.length;
+  points += Math.min(totalExercises * 1.5, 8); // Máximo 8 puntos por ejercicios
+  
+  // 2. Puntos por sets completados con repeticiones
+  let completedSets = 0;
+  exercises.forEach(exercise => {
+    if (exercise.sets && Array.isArray(exercise.sets)) {
+      exercise.sets.forEach(set => {
+        // Un set cuenta si tiene reps y está completado
+        if (set.reps && set.reps > 0 && (!set.status || set.status === 'completed')) {
+          completedSets++;
+        }
+      });
+    }
+  });
+  
+  // 0.8 puntos por set completado, máximo 10 puntos
+  points += Math.min(completedSets * 0.8, 10);
+  
+  // 3. Puntos por duración (bonus/penalización)
+  if (duration) {
+    const durationPoints = calculateDurationPoints(duration);
+    points += durationPoints;
+  }
+  
+  // 4. Bonus por racha: si la última sesión tuvo 21 o más puntos, sumar 1 punto adicional
+  const basePoints = Math.max(0, Math.min(Math.round(points), 21));
+  
+  if (userId && basePoints === 21) {
+    try {
+      // Buscar la última sesión del usuario
+      const lastSession = await Session.findOne({
+        where: { userId: parseInt(userId) },
+        order: [['date', 'DESC']],
+        attributes: ['points']
+      });
+
+      // Si la última sesión tuvo 21 o más puntos, agregar bonus de racha
+      if (lastSession && lastSession.points >= 21) {
+        const streakBonus = lastSession.points - 21 + 1; // Calcular bonus de racha
+        console.log(`🔥 Racha detectada! Usuario ${userId} obtiene ${basePoints} + ${streakBonus} = ${basePoints + streakBonus} puntos`);
+        return basePoints + streakBonus;
+      }
+    } catch (error) {
+      console.error('Error al verificar racha:', error);
+      // Si hay error, retornar puntos base sin racha
+    }
+  }
+  
+  // Retornar puntos base sin racha
+  return basePoints;
+}
+
+/**
+ * Calcula puntos basándose en la duración de la sesión
+ * @param {Number} duration - Duración en minutos
+ * @returns {Number} - Puntos por duración (-3 a +3)
+ */
+function calculateDurationPoints(duration) {
+  // Ideal: 45 minutos a 2 horas (120 minutos)
+  const idealMin = 45;
+  const idealMax = 120;
+  
+  if (duration >= idealMin && duration <= idealMax) {
+    // Duración ideal: +3 puntos
+    return 3;
+  } else if (duration < 45) {
+    // Muy corta: penalización proporcional
+    // Menos de 20 min: -3 puntos
+    // Entre 20-44 min: -1 a -2 puntos
+    if (duration < 20) return -3;
+    if (duration < 30) return -2;
+    return -1;
+  } else {
+    // Muy larga: penalización proporcional
+    // Más de 2.5 horas (150 min): -3 puntos
+    // Entre 2-2.5 horas: -1 a -2 puntos
+    if (duration > 150) return -3;
+    if (duration > 135) return -2;
+    return -1;
+  }
+}
+
+/**
+ * Actualiza los puntos de un usuario en todas sus ligas y maneja promoción/degradación
+ * @param {Number} userId - ID del usuario
+ * @param {Number} pointsToAdd - Puntos a sumar
+ */
+async function updateLeagueMemberPoints(userId, pointsToAdd) {
+  try {
+    // Obtener todas las ligas ordenadas por puntos mínimos
+    const leagues = await League.findAll({
+      order: [['minimumPoints', 'ASC']]
+    });
+
+    if (leagues.length === 0) {
+      console.log('No hay ligas disponibles');
+      return;
+    }
+
+    // Obtener todos los LeagueMembers del usuario
+    const userLeagueMembers = await LeagueMember.findAll({
+      where: { userId: parseInt(userId) },
+      include: [{
+        model: League,
+        as: 'league'
+      }]
+    });
+
+    if (userLeagueMembers.length === 0) {
+      console.log(`Usuario ${userId} no está en ninguna liga`);
+      return;
+    }
+
+    // Procesar cada LeagueMember del usuario
+    for (const member of userLeagueMembers) {
+      const currentLeague = member.league;
+      let newPoints = member.points + pointsToAdd;
+      
+      // Determinar la liga correcta basándose en los nuevos puntos
+      let targetLeague = null;
+      
+      // Buscar la liga apropiada para los nuevos puntos
+      for (const league of leagues) {
+        if (newPoints >= league.minimumPoints && newPoints <= league.maximumPoints) {
+          targetLeague = league;
+          break;
+        }
+      }
+
+      // Si no se encuentra una liga, verificar si supera el máximo de la última liga
+      if (!targetLeague) {
+        const lastLeague = leagues[leagues.length - 1];
+        const firstLeague = leagues[0];
+        
+        // Si supera el máximo de la última liga, puede seguir acumulando puntos
+        if (newPoints > lastLeague.maximumPoints) {
+          targetLeague = lastLeague;
+          console.log(`Usuario ${userId} alcanzó el máximo de ${lastLeague.name} pero continúa acumulando puntos (${newPoints} puntos)`);
+        } 
+        // Si baja del mínimo de la primera liga, asignar el mínimo de la primera liga
+        else if (newPoints < firstLeague.minimumPoints) {
+          targetLeague = firstLeague;
+          newPoints = firstLeague.minimumPoints; // Ajustar puntos al mínimo
+          console.log(`Usuario ${userId} bajó del mínimo de ${firstLeague.name}, puntos ajustados a ${firstLeague.minimumPoints}`);
+        }
+      }
+
+      // Actualizar el LeagueMember
+      await member.update({
+        points: newPoints,
+        leagueId: targetLeague.id
+      });
+
+      // Log si cambió de liga
+      if (currentLeague.id !== targetLeague.id) {
+        const isPromotion = currentLeague.minimumPoints < targetLeague.minimumPoints;
+        const action = isPromotion ? 'promovido' : 'degradado';
+        console.log(`Usuario ${userId} ${action} de ${currentLeague.name} a ${targetLeague.name} (${member.points} -> ${newPoints} puntos)`);
+      } else {
+        console.log(`Puntos actualizados en LeagueMembers para usuario ${userId}: ${member.points} -> ${newPoints} (Liga: ${currentLeague.name})`);
+      }
+    }
+  } catch (error) {
+    console.error('Error al actualizar puntos en LeagueMembers:', error);
+    // No lanzar error para no fallar la creación de sesión
+  }
+}
+
+/**
+ * Actualiza los puntos de un usuario en todos sus grupos
+ * @param {Number} userId - ID del usuario
+ * @param {Number} points - Puntos a sumar
+ */
+async function updateGroupMemberPoints(userId, points) {
+  try {
+    await GroupMember.increment('points', {
+      by: points,
+      where: { userId: parseInt(userId) }
+    });
+    console.log(`Puntos actualizados en GroupMembers para usuario ${userId}: +${points}`);
+  } catch (error) {
+    console.error('Error al actualizar puntos en GroupMembers:', error);
+    // No lanzar error para no fallar la creación de sesión
   }
 }
 
@@ -52,7 +251,7 @@ export const sessionController = {
             required: false // LEFT JOIN para incluir sesiones sin rutina
           }
         ],
-        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt'],
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt'],
         order: [['date', 'DESC']] // Ordenar por fecha más reciente primero
       });
 
@@ -73,6 +272,7 @@ export const sessionController = {
           date: session.date,
           duration: session.duration,
           status: session.status,
+          points: session.points,
           createdAt: session.createdAt,
           updatedAt: session.updatedAt
         };
@@ -98,6 +298,137 @@ export const sessionController = {
 
     } catch (error) {
       console.error('Error al obtener sesiones:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+
+  // Obtener historial detallado de sesiones de un usuario
+  getSessionHistory: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Validar que userId sea un número
+      if (!userId || isNaN(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de usuario inválido'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      // Buscar todas las sesiones del usuario con información de la rutina y ejercicios
+      const sessions = await Session.findAll({
+        where: {
+          userId: parseInt(userId)
+        },
+        include: [
+          {
+            model: Routine,
+            as: 'routine',
+            attributes: ['id', 'name', 'description'],
+            required: false
+          },
+          {
+            model: Exercise,
+            as: 'exercises',
+            through: {
+              model: ExerciseSession,
+              as: 'exerciseSession',
+              attributes: ['id', 'sessionId', 'exerciseId', 'order']
+            },
+            attributes: ['id', 'name'],
+            required: false
+          }
+        ],
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt'],
+        order: [['date', 'DESC']]
+      });
+
+      // Verificar si hay sesiones para el usuario
+      if (sessions.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontraron sesiones para el usuario especificado'
+        });
+      }
+
+      // Obtener todos los ExerciseSessions con sus Sets
+      const sessionIds = sessions.map(s => s.id);
+      const exerciseSessions = await ExerciseSession.findAll({
+        where: { sessionId: sessionIds },
+        include: [
+          {
+            model: SetModel,
+            as: 'sets',
+            attributes: ['id', 'order', 'status', 'reps', 'weight', 'restTime']
+          }
+        ]
+      });
+
+      // Crear un mapa de sets por exerciseSessionId
+      const setsByExerciseSessionId = {};
+      exerciseSessions.forEach(es => {
+        setsByExerciseSessionId[es.id] = es.sets || [];
+      });
+
+      // Formatear la respuesta
+      const formattedSessions = sessions.map(session => {
+        const sessionData = {
+          id: session.id,
+          routineName: session.routine ? session.routine.name : null,
+          duration: session.duration,
+          routineDescription: session.routine ? session.routine.description : null,
+          points: session.points,
+          date: session.date,
+          status: session.status,
+          exercises: []
+        };
+
+        // Procesar ejercicios de la sesión
+        if (session.exercises && session.exercises.length > 0) {
+          session.exercises.forEach(exercise => {
+            const exerciseSession = exercise.exerciseSession;
+            if (!exerciseSession) return;
+
+            // Obtener los sets para este exerciseSession
+            const sets = setsByExerciseSessionId[exerciseSession.id] || [];
+            
+            // Calcular número de sets y repeticiones totales
+            const numSets = sets.length;
+            const totalReps = sets.reduce((sum, set) => sum + (set.reps || 0), 0);
+
+            sessionData.exercises.push({
+              name: exercise.name,
+              numSets: numSets,
+              totalReps: totalReps
+            });
+          });
+        }
+
+        return sessionData;
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Historial de sesiones obtenido exitosamente',
+        data: formattedSessions,
+        count: formattedSessions.length
+      });
+
+    } catch (error) {
+      console.error('Error al obtener historial de sesiones:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',
@@ -180,13 +511,17 @@ export const sessionController = {
         });
       }
 
+      // Calcular puntos de la sesión (con bonus por racha si aplica)
+      const calculatedPoints = await calculateSessionPoints(exercises, duration, userId);
+      
       // Crear la sesión
       const session = await createWithSequenceFallback(Session, {
         userId: parseInt(userId),
         routineId: routineId ? parseInt(routineId) : null,
         date: new Date(),
         duration: duration || null,
-        status: status || 'completed'
+        status: status || 'completed',
+        points: calculatedPoints
       });
 
       // Crear los ExerciseSession y sus SetModels
@@ -215,6 +550,10 @@ export const sessionController = {
           }
         }
       }
+
+      // Actualizar puntos en LeagueMembers y GroupMembers
+      await updateLeagueMemberPoints(userId, calculatedPoints);
+      await updateGroupMemberPoints(userId, calculatedPoints);
 
       // Si changeRoutine es true, actualizar la rutina
       // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
@@ -311,7 +650,8 @@ export const sessionController = {
               },
               attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
             }
-          ]
+          ],
+          attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt']
         });
 
         // Obtener los ExerciseSessions con sus SetModels por separado
@@ -341,8 +681,8 @@ export const sessionController = {
 
       res.status(201).json({
         success: true,
-        message: 'Sesión creada exitosamente',
-        data: createdSession
+        message: `Sesión creada exitosamente. Puntos obtenidos: ${calculatedPoints}`,
+        data: createdSession,
       });
 
     } catch (error) {
@@ -388,7 +728,7 @@ export const sessionController = {
             attributes: ['id', 'name', 'userMade', 'categoryId', 'userId']
           }
         ],
-        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'createdAt', 'updatedAt']
+        attributes: ['id', 'userId', 'routineId', 'date', 'duration', 'status', 'points', 'createdAt', 'updatedAt']
       });
 
       // Obtener los sets por separado para evitar problemas de asociación
@@ -424,6 +764,7 @@ export const sessionController = {
         date: session.date,
         duration: session.duration,
         status: session.status,
+        points: session.points,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
         routine: session.routine ? {
@@ -777,6 +1118,129 @@ export const sessionController = {
 
     } catch (error) {
       console.error('Error al eliminar sesión:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+  getMonthlySessions: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(400).json({ message: 'Se requiere userId' });
+      }
+
+      // Fecha actual y rango del mes
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      // Buscar sesiones del mes actual
+      const sessions = await Session.findAll({
+        where: {
+          userId,
+          date: {
+            [Op.between]: [firstDay, lastDay]
+          }
+        },
+        attributes: ['id', 'date', 'duration', 'status', 'points'],
+        order: [['date', 'ASC']]
+      });
+
+      // Calcular puntos totales del mes
+      const totalPoints = sessions.reduce((sum, s) => sum + (s.points || 0), 0);
+
+      // Formatear respuesta
+      res.status(200).json({
+        success: true,
+        userId,
+        month: now.toLocaleString('es-ES', { month: 'long', year: 'numeric' }),
+        totalSessions: sessions.length,
+        totalPoints,
+        sessions
+      });
+
+    } catch (error) {
+      console.error('Error al obtener sesiones del mes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+  getWeeklySummary: async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(400).json({ message: 'Se requiere userId' });
+      }
+
+      // Fecha actual
+      const today = new Date();
+
+      // Obtener el lunes de la semana actual
+      const dayOfWeek = today.getDay(); // 0 = Domingo, 1 = Lunes...
+      const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+
+      // Domingo siguiente
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      // Buscar sesiones entre lunes y domingo
+      const sessions = await Session.findAll({
+        where: {
+          userId,
+          date: { [Op.between]: [monday, sunday] }
+        },
+        attributes: ['id', 'date', 'duration', 'points']
+      });
+
+      // Inicializar estructura semanal
+      const weekDays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+      const summary = weekDays.map(day => ({
+        day,
+        totalPoints: 0,
+        totalSessions: 0,
+        totalDuration: 0
+      }));
+
+      // Procesar sesiones
+      sessions.forEach(s => {
+        const date = new Date(s.date);
+        const jsDay = date.getDay(); // 0=Dom, 1=Lun, ...
+        const index = jsDay === 0 ? 6 : jsDay - 1; // Para comenzar en Lunes
+        summary[index].totalPoints += s.points || 0;
+        summary[index].totalSessions += 1;
+        summary[index].totalDuration += s.duration || 0;
+      });
+
+      // Totales semanales
+      const totalWeekPoints = summary.reduce((sum, d) => sum + d.totalPoints, 0);
+      const totalWeekSessions = summary.reduce((sum, d) => sum + d.totalSessions, 0);
+      const totalWeekDuration = summary.reduce((sum, d) => sum + d.totalDuration, 0);
+
+      return res.status(200).json({
+        success: true,
+        userId,
+        weekRange: `${monday.toLocaleDateString('es-ES')} - ${sunday.toLocaleDateString('es-ES')}`,
+        summary,
+        totals: {
+          totalWeekPoints,
+          totalWeekSessions,
+          totalWeekDuration
+        }
+      });
+    } catch (error) {
+      console.error('Error al obtener resumen semanal:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',
