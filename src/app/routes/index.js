@@ -63,6 +63,7 @@ router.post('/groups/join/:userId', groupController.joinGroup);
 router.delete('/groups/:groupId/member/:userId', groupController.leaveGroup);
 router.get('/groupRanking/:groupId/:userId', groupController.getGroupRanking);
 router.get('/groupTopSession/:groupId', groupController.getGroupTopSession);
+router.get('/groups/:groupId', groupController.getGroupInfo);
 router.get('/groups/users/:userId', groupController.getUserGroups);
 
 // Leagues
