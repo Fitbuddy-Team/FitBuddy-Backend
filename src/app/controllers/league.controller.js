@@ -43,6 +43,7 @@ export const leagueController = {
             return res.json({
                 id: userLeague.id,
                 name: userLeague.name,
+                userPoints: user.leagueMember.points,
                 minimumPoints: userLeague.minimumPoints,
                 maximumPoints: userLeague.maximumPoints,
                 totalMembers: members.length,
