@@ -163,7 +163,7 @@ export const groupController = {
           .map(m => ({ userId: m.userId, points: Number(m.points) || 0 }))
           .sort((a, b) => b.points - a.points);
 
-        // Calcular posiciones (mismo puntaje -> misma posición)
+        // Calcular posiciones (mismo puntaje -> misma posición; el siguiente salta)
         const ranking = [];
         let lastPoints = null;
         let lastPosition = 0;
@@ -182,7 +182,7 @@ export const groupController = {
           });
         }
 
-        // Separar usuario actual y los demás (el endpoint pide que los integrantes no incluyan al usuario actual)
+        // Separar usuario actual y los demás (integrantes no incluyan al usuario actual)
         const currentUserEntry = ranking.find(r => r.userId === Number(userId)) || null;
         const membersWithoutCurrent = ranking.filter(r => r.userId !== Number(userId));
 
