@@ -1,4 +1,5 @@
 import { Routine, Exercise, ExerciseRoutine, Set as SetModel, Session, ExerciseSession, User, sequelize } from '../models/index.js';
+import { callLLMForPlan, buildFinalRoutine } from '../services/routineRecommendation.service.js';
 
 // Función auxiliar para manejar errores de secuencia
 async function createWithSequenceFallback(Model, data, options = {}) {
@@ -705,6 +706,69 @@ export const routineController = {
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor',
+        error: error.message
+      });
+    }
+  },
+
+  // Generar rutina recomendada usando IA
+  recommendRoutine: async (req, res) => {
+    try {
+      const { userId, userMessage, routineName } = req.body;
+
+      // Validaciones básicas
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'userId es requerido'
+        });
+      }
+
+      if (!userMessage || typeof userMessage !== 'string' || userMessage.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'userMessage es requerido y debe ser un texto válido'
+        });
+      }
+
+      // Verificar que el usuario existe
+      const user = await User.findByPk(parseInt(userId));
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado'
+        });
+      }
+
+      // 1. Llamar a la IA para obtener el plan abstracto
+      const abstractPlan = await callLLMForPlan(userMessage.trim());
+
+      // 2. Construir la rutina final con ejercicios reales
+      const finalRoutine = await buildFinalRoutine(
+        abstractPlan,
+        parseInt(userId),
+        routineName || null
+      );
+
+      // Validar que se encontraron ejercicios
+      if (!finalRoutine.exercises || finalRoutine.exercises.length === 0) {
+        return res.status(500).json({
+          success: false,
+          message: 'No se pudieron encontrar ejercicios para el plan generado. Intenta con una descripción más específica.'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Rutina recomendada generada exitosamente',
+        data: finalRoutine
+      });
+
+    } catch (error) {
+      console.error('Error al generar rutina recomendada:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al generar rutina recomendada',
         error: error.message
       });
     }
