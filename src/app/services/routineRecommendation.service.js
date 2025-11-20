@@ -58,6 +58,54 @@ export async function callLLMForPlan(userMessage, userData = {}) {
       throw new Error('Lo que solicitas se escapa de mi alcance como recomendador de rutinas, prueba nuevamente');
     }
     
+    // Obtener grupos musculares disponibles de la base de datos
+    const muscleGroups = await MuscleGroup.findAll({
+      attributes: ['name'],
+      order: [['name', 'ASC']]
+    });
+    const muscleGroupNames = muscleGroups.map(mg => mg.name).join(', ');
+    
+    // Mapeo de grupos musculares en español a los nombres en la BD
+    const muscleGroupMapping = {
+      'pecho': 'chest',
+      'piernas': ['quadriceps', 'hamstrings', 'calves', 'glutes'],
+      'pierna': ['quadriceps', 'hamstrings', 'calves', 'glutes'],
+      'espalda': ['lats', 'middle back', 'lower back'],
+      'hombros': 'shoulders',
+      'hombro': 'shoulders',
+      'brazos': ['biceps', 'triceps', 'forearms'],
+      'brazo': ['biceps', 'triceps', 'forearms'],
+      'core': ['abdominals'],
+      'glúteos': 'glutes',
+      'gluteos': 'glutes',
+      'cuádriceps': 'quadriceps',
+      'cuadriceps': 'quadriceps',
+      'isquiotibiales': 'hamstrings',
+      'pantorrillas': 'calves',
+      'bíceps': 'biceps',
+      'biceps': 'biceps',
+      'tríceps': 'triceps',
+      'triceps': 'triceps',
+      'antebrazos': 'forearms',
+      'trapecios': 'traps'
+    };
+    
+    // Detectar qué grupo muscular solicita el usuario
+    let requestedMuscleGroup = null;
+    let requestedMuscleGroupName = null;
+    for (const [key, value] of Object.entries(muscleGroupMapping)) {
+      if (messageLower.includes(key)) {
+        if (Array.isArray(value)) {
+          requestedMuscleGroup = value; // Lista de grupos relacionados
+          requestedMuscleGroupName = key;
+        } else {
+          requestedMuscleGroup = [value];
+          requestedMuscleGroupName = key;
+        }
+        break;
+      }
+    }
+    
     // Analizar el mensaje del usuario para determinar preferencia de cantidad de ejercicios
     let exerciseCountHint = '5-6'; // Por defecto, cantidad media
     
@@ -112,24 +160,26 @@ SI LA RESPUESTA ES SÍ (pide crear rutina/plan de ejercicio):
   "sessions": [...]
 }
 
-IMPORTANTE: Genera un plan de rutina en formato JSON válido. 
-- CRÍTICO: El TOTAL de ejercicios en TODAS las sesiones debe estar entre 4 y 7 ejercicios (idealmente ${exerciseCountHint} ejercicios según la preferencia del usuario). 
-- CUENTA TODOS LOS EJERCICIOS: suma todos los ejercicios de todas las sesiones. El total NO debe exceder 7.
-- Máximo 6 sesiones.
-- Distribuye los ejercicios entre las sesiones de manera equilibrada.
+IMPORTANTE: Genera UNA SOLA RUTINA (1 sesión) en formato JSON válido. 
+- CRÍTICO: Debes generar SOLO 1 sesión, NO múltiples sesiones.
+- El TOTAL de ejercicios debe estar entre 4 y 7 ejercicios (idealmente ${exerciseCountHint} ejercicios según la preferencia del usuario).
+${requestedMuscleGroup ? `- CRÍTICO: El usuario solicitó una rutina para ${requestedMuscleGroupName}. TODOS los ejercicios DEBEN ser para este grupo muscular: ${requestedMuscleGroup.join(', ')}. NO incluyas ejercicios de otros grupos musculares.` : ''}
+- GRUPOS MUSCULARES DISPONIBLES en la base de datos: ${muscleGroupNames}
+- muscleGroup DEBE ser uno de estos grupos disponibles. Si el usuario solicita un grupo específico, usa SOLO ese grupo.
+- Si el usuario no especifica un grupo, puedes usar diferentes grupos pero siempre de la lista disponible.
 
 Estructura JSON requerida (todos los campos son obligatorios):
 {
-  "goal": "hipertrofia|fuerza|pérdida de grasa|resistencia|fitness general",
+  "goal": "Hipertrofia|Fuerza|Pérdida de grasa|Resistencia|Fitness general",
   "daysPerWeek": 3,
   "sessions": [
     {
-      "name": "Push A",
-      "description": "Entrenamiento de empuje",
+      "name": "Rutina de Piernas",
+      "description": "Entrenamiento enfocado en piernas",
       "exercises": [
         {
-          "slotName": "Press banca con barra",
-          "muscleGroup": "chest",
+          "slotName": "Sentadillas",
+          "muscleGroup": "quadriceps",
           "type": "compound",
           "restTime": 3,
           "sets": [
@@ -137,11 +187,25 @@ Estructura JSON requerida (todos los campos son obligatorios):
             {"reps": "8-10", "intensity": "medium", "weight": 65, "restTime": 3},
             {"reps": "8-10", "intensity": "medium", "weight": 70, "restTime": 3}
           ]
+        },
+        {
+          "slotName": "Peso muerto",
+          "muscleGroup": "hamstrings",
+          "type": "compound",
+          "restTime": 3,
+          "sets": [
+            {"reps": "8-10", "intensity": "medium", "weight": 80, "restTime": 3},
+            {"reps": "8-10", "intensity": "medium", "weight": 80, "restTime": 3}
+          ]
         }
       ]
     }
   ]
 }
+
+IMPORTANTE: 
+- Debes generar SOLO 1 sesión en el array "sessions", NO múltiples sesiones.
+${requestedMuscleGroup ? `- El usuario pidió rutina para ${requestedMuscleGroupName}. TODOS los ejercicios deben usar muscleGroup de: ${requestedMuscleGroup.join(' o ')}.` : ''}
 
 REGLAS OBLIGATORIAS (CRÍTICO - NO IGNORES):
 - Cada ejercicio DEBE tener: slotName (string), muscleGroup (string), type (string), restTime (number), sets (array)
@@ -239,13 +303,30 @@ REGLAS OBLIGATORIAS (CRÍTICO - NO IGNORES):
       throw new Error('Lo que solicitas se escapa de mi alcance como recomendador de rutinas, prueba nuevamente');
     }
     
-    // Verificar que al menos una sesión tenga ejercicios
-    const hasExercises = plan.sessions.some(session => 
-      session.exercises && Array.isArray(session.exercises) && session.exercises.length > 0
-    );
+    // Validar que solo haya 1 sesión
+    if (plan.sessions.length > 1) {
+      console.warn(`La IA generó ${plan.sessions.length} sesiones, se usará solo la primera`);
+      plan.sessions = [plan.sessions[0]]; // Usar solo la primera sesión
+    }
     
-    if (!hasExercises) {
+    // Verificar que la sesión tenga ejercicios
+    if (!plan.sessions[0].exercises || !Array.isArray(plan.sessions[0].exercises) || plan.sessions[0].exercises.length === 0) {
       throw new Error('Lo que solicitas se escapa de mi alcance como recomendador de rutinas, prueba nuevamente');
+    }
+    
+    // Validar grupos musculares si se solicitó uno específico
+    if (requestedMuscleGroup) {
+      const invalidExercises = plan.sessions[0].exercises.filter(ex => 
+        !requestedMuscleGroup.includes(ex.muscleGroup)
+      );
+      if (invalidExercises.length > 0) {
+        console.warn(`Algunos ejercicios no corresponden al grupo muscular solicitado (${requestedMuscleGroupName}):`, 
+          invalidExercises.map(ex => ex.slotName).join(', '));
+        // Filtrar ejercicios que no corresponden
+        plan.sessions[0].exercises = plan.sessions[0].exercises.filter(ex => 
+          requestedMuscleGroup.includes(ex.muscleGroup)
+        );
+      }
     }
 
     // Validación básica del esquema
@@ -275,8 +356,8 @@ function validateAbstractPlan(plan) {
     throw new Error('Plan inválido: faltan campos requeridos');
   }
 
-  if (plan.sessions.length === 0 || plan.sessions.length > 6) {
-    throw new Error('Plan inválido: debe tener entre 1 y 6 sesiones');
+  if (plan.sessions.length !== 1) {
+    throw new Error('Plan inválido: debe tener exactamente 1 sesión');
   }
 
   let totalExercises = 0;
@@ -286,8 +367,8 @@ function validateAbstractPlan(plan) {
       throw new Error(`Sesión ${sessionIdx + 1} inválida: faltan campos requeridos`);
     }
 
-    if (session.exercises.length === 0 || session.exercises.length > 6) {
-      throw new Error(`Sesión ${sessionIdx + 1} inválida: debe tener entre 1 y 6 ejercicios`);
+    if (session.exercises.length === 0 || session.exercises.length > 7) {
+      throw new Error(`Sesión ${sessionIdx + 1} inválida: debe tener entre 1 y 7 ejercicios`);
     }
 
     totalExercises += session.exercises.length;
