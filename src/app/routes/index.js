@@ -8,6 +8,7 @@ import { routineController } from '../controllers/routine.controller.js';
 import { sessionController } from '../controllers/session.controller.js';
 import { groupController } from '../controllers/group.controller.js';
 import { leagueController } from '../controllers/league.controller.js';
+import { muscomonedasController } from '../controllers/muscomonedas.controller.js';
 const router = Router();
 
 
@@ -69,6 +70,9 @@ router.get('/groups/users/:userId', groupController.getUserGroups);
 // Leagues
 router.get('/league/user/:userId', leagueController.getUserLeague);
 router.get('/league/top/:N/:numSessions/:userId', leagueController.getTopPlayersSessions);
+
+// Muscomonedas
+router.get('/Muscomonedas/:userId', muscomonedasController.getUserMuscomonedas);
 
 export default router;
 

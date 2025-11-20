@@ -1,4 +1,4 @@
-import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, League, sequelize } from '../models/index.js';
+import { Session, Routine, ExerciseSession, ExerciseRoutine, Set as SetModel, Exercise, User, LeagueMember, GroupMember, League, Muscomonedas, sequelize } from '../models/index.js';
 import { Op } from 'sequelize';
 
 // Función auxiliar para manejar errores de secuencia
@@ -215,6 +215,41 @@ async function updateGroupMemberPoints(userId, points) {
   }
 }
 
+/**
+ * Actualiza las muscomonedas de un usuario basándose en los puntos obtenidos
+ * @param {Number} userId - ID del usuario
+ * @param {Number} points - Puntos obtenidos en la sesión
+ */
+async function updateMuscomonedas(userId, points) {
+  try {
+    // Calcular muscomonedas: puntos * 1/4 como número entero
+    const muscomonedasEarned = Math.floor(points * 0.25);
+    
+    if (muscomonedasEarned > 0) {
+      // Buscar o crear el registro de Muscomonedas para el usuario
+      let muscomonedas = await Muscomonedas.findOne({
+        where: { userId: parseInt(userId) }
+      });
+
+      if (!muscomonedas) {
+        // Si no existe, crear uno con las muscomonedas ganadas
+        muscomonedas = await Muscomonedas.create({
+          userId: parseInt(userId),
+          amount: muscomonedasEarned
+        });
+        console.log(`Muscomonedas creadas para usuario ${userId}: +${muscomonedasEarned} (total: ${muscomonedasEarned})`);
+      } else {
+        // Si existe, incrementar las muscomonedas
+        await muscomonedas.increment('amount', { by: muscomonedasEarned });
+        console.log(`Muscomonedas actualizadas para usuario ${userId}: +${muscomonedasEarned} (total: ${muscomonedas.amount + muscomonedasEarned})`);
+      }
+    }
+  } catch (error) {
+    console.error('Error al actualizar muscomonedas:', error);
+    // No lanzar error para no fallar la creación de sesión
+  }
+}
+
 export const sessionController = {
   // Obtener todas las sesiones de un usuario
   getAllSessions: async (req, res) => {
@@ -265,6 +300,9 @@ export const sessionController = {
 
       // Formatear la respuesta
       const formattedSessions = sessions.map(session => {
+        // Calcular muscomonedas generadas (puntos * 1/4 como entero)
+        const muscomonedasEarned = Math.floor(session.points * 0.25);
+
         const sessionData = {
           id: session.id,
           userId: session.userId,
@@ -273,6 +311,7 @@ export const sessionController = {
           duration: session.duration,
           status: session.status,
           points: session.points,
+          muscomonedasEarned: muscomonedasEarned,
           createdAt: session.createdAt,
           updatedAt: session.updatedAt
         };
@@ -385,12 +424,16 @@ export const sessionController = {
 
       // Formatear la respuesta
       const formattedSessions = sessions.map(session => {
+        // Calcular muscomonedas generadas (puntos * 1/4 como entero)
+        const muscomonedasEarned = Math.floor(session.points * 0.25);
+
         const sessionData = {
           id: session.id,
           routineName: session.routine ? session.routine.name : null,
           duration: session.duration,
           routineDescription: session.routine ? session.routine.description : null,
           points: session.points,
+          muscomonedasEarned: muscomonedasEarned,
           date: session.date,
           status: session.status,
           exercises: []
@@ -554,6 +597,9 @@ export const sessionController = {
       // Actualizar puntos en LeagueMembers y GroupMembers
       await updateLeagueMemberPoints(userId, calculatedPoints);
       await updateGroupMemberPoints(userId, calculatedPoints);
+      
+      // Actualizar muscomonedas (puntos * 1/4 como entero)
+      await updateMuscomonedas(userId, calculatedPoints);
 
       // Si changeRoutine es true, actualizar la rutina
       // Por defecto changeRoutine es false, solo actualiza si se especifica explícitamente true
@@ -679,10 +725,14 @@ export const sessionController = {
           });
         }
 
+      // Calcular muscomonedas generadas (puntos * 1/4 como entero)
+      const muscomonedasEarned = Math.floor(calculatedPoints * 0.25);
+
       res.status(201).json({
         success: true,
         message: `Sesión creada exitosamente. Puntos obtenidos: ${calculatedPoints}`,
         data: createdSession,
+        muscomonedasEarned: muscomonedasEarned
       });
 
     } catch (error) {
@@ -756,6 +806,9 @@ export const sessionController = {
         setsByExerciseSessionId[es.id] = es.sets || [];
       });
 
+      // Calcular muscomonedas generadas (puntos * 1/4 como entero)
+      const muscomonedasEarned = Math.floor(session.points * 0.25);
+
       // Formatear la respuesta
       const formattedSession = {
         id: session.id,
@@ -765,6 +818,7 @@ export const sessionController = {
         duration: session.duration,
         status: session.status,
         points: session.points,
+        muscomonedasEarned: muscomonedasEarned,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
         routine: session.routine ? {
