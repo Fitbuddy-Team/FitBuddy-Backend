@@ -162,7 +162,8 @@ SI LA RESPUESTA ES SÍ (pide crear rutina/plan de ejercicio):
 
 IMPORTANTE: Genera UNA SOLA RUTINA (1 sesión) en formato JSON válido. 
 - CRÍTICO: Debes generar SOLO 1 sesión, NO múltiples sesiones.
-- El TOTAL de ejercicios debe estar entre 4 y 7 ejercicios (idealmente ${exerciseCountHint} ejercicios según la preferencia del usuario).
+- CRÍTICO: El TOTAL de ejercicios debe estar entre 4 y 7 ejercicios (MÍNIMO 4 ejercicios, idealmente ${exerciseCountHint} ejercicios según la preferencia del usuario).
+- NO generes menos de 4 ejercicios. Si no puedes generar al menos 4 ejercicios, devuelve un error.
 ${requestedMuscleGroup ? `- CRÍTICO: El usuario solicitó una rutina para ${requestedMuscleGroupName}. TODOS los ejercicios DEBEN ser para este grupo muscular: ${requestedMuscleGroup.join(', ')}. NO incluyas ejercicios de otros grupos musculares.` : ''}
 - GRUPOS MUSCULARES DISPONIBLES en la base de datos: ${muscleGroupNames}
 - muscleGroup DEBE ser uno de estos grupos disponibles. Si el usuario solicita un grupo específico, usa SOLO ese grupo.
@@ -205,6 +206,7 @@ Estructura JSON requerida (todos los campos son obligatorios):
 
 IMPORTANTE: 
 - Debes generar SOLO 1 sesión en el array "sessions", NO múltiples sesiones.
+- MÍNIMO 4 ejercicios en la sesión. NO generes menos de 4 ejercicios.
 ${requestedMuscleGroup ? `- El usuario pidió rutina para ${requestedMuscleGroupName}. TODOS los ejercicios deben usar muscleGroup de: ${requestedMuscleGroup.join(' o ')}.` : ''}
 
 REGLAS OBLIGATORIAS (CRÍTICO - NO IGNORES):
@@ -215,11 +217,16 @@ REGLAS OBLIGATORIAS (CRÍTICO - NO IGNORES):
   * Pecho/Piernas/Espalda (compound): 3-4 minutos
   * Hombros: 2-3 minutos
   * Brazos/Core (aislamiento): 1-2 minutos
-- muscleGroup: chest, legs, back, shoulders, arms, core
+- muscleGroup: abdominals, abductors, adductors, biceps, calves, chest, forearms, glutes, hamstrings, lats, back, back, neck, quadriceps, shoulders, traps, triceps
 - type: compound o isolation
 - EJEMPLO CORRECTO: {"reps": "8-10", "intensity": "medium", "weight": 60, "restTime": 3}
 - EJEMPLO INCORRECTO (NO HACER): {"reps": "8-10", "intensity": "medium", "weight": null, "restTime": 3}
-- Devuelve SOLO el JSON, sin texto adicional ni markdown`;
+- Devuelve SOLO el JSON, sin texto adicional ni markdown
+- Los ejercicios que entregues idealmente que no sea lo mismo escrito de distinta manera
+- QUe sean ejercicios reales de máquinas de gimnasio y no inventados
+- QUe no se repitan ejercicios!`;
+
+
 
     // Llamada a Groq API (rápido y económico)
     // Modelos Groq disponibles:
@@ -650,19 +657,19 @@ function getRestTimeByMuscleGroup(muscleGroup) {
 
 /**
  * Construye la rutina final a partir del plan abstracto
+ * Usa directamente los ejercicios sugeridos por la IA sin buscar en la BD
  * @param {AbstractPlan} abstractPlan - Plan abstracto de la IA
  * @param {number} userId - ID del usuario
  * @param {string} routineName - Nombre de la rutina proporcionado por el usuario
- * @returns {Promise<Object>} JSON final con la estructura de rutina
+ * @returns {Promise<Object>} JSON final con la estructura de rutina lista para crear
  */
 export async function buildFinalRoutine(abstractPlan, userId, routineName) {
   const exercises = [];
-  const usedExerciseIds = new Set(); // Rastrear ejercicios ya agregados para evitar duplicados
   let exerciseOrder = 1;
   const MAX_EXERCISES = 7; // Límite máximo de ejercicios
   const MIN_EXERCISES = 4; // Límite mínimo de ejercicios
 
-  // Procesar cada sesión del plan
+  // Procesar cada sesión del plan (solo debe haber 1)
   for (const session of abstractPlan.sessions) {
     // Si ya alcanzamos el máximo, detener el procesamiento
     if (exercises.length >= MAX_EXERCISES) {
@@ -675,23 +682,6 @@ export async function buildFinalRoutine(abstractPlan, userId, routineName) {
       // Si ya alcanzamos el máximo, detener el procesamiento
       if (exercises.length >= MAX_EXERCISES) {
         break;
-      }
-
-      // Convertir Set a Array para pasarlo a la función
-      const excludedIds = Array.from(usedExerciseIds);
-      
-      // Buscar el ejercicio real en la base de datos, excluyendo los ya usados
-      const exercise = await chooseExerciseFromSlot(abstractExercise, excludedIds);
-
-      if (!exercise) {
-        console.warn(`No se encontró ejercicio para slot: ${abstractExercise.slotName} (excluyendo ${excludedIds.length} ejercicios ya usados)`);
-        continue; // Saltar este ejercicio si no se encuentra
-      }
-
-      // Verificar que no sea un duplicado (por si acaso)
-      if (usedExerciseIds.has(exercise.id)) {
-        console.warn(`Ejercicio ${exercise.id} (${exercise.name}) ya fue agregado, saltando...`);
-        continue;
       }
 
       // Convertir restTime del ejercicio de minutos a segundos (la IA siempre lo proporciona)
@@ -733,16 +723,13 @@ export async function buildFinalRoutine(abstractPlan, userId, routineName) {
         };
       });
 
-      // Agregar el ejercicio a la rutina
+      // Agregar el ejercicio a la rutina con la información necesaria para crearlo si no existe
       exercises.push({
-        exerciseId: exercise.id,
-        name: exercise.name,
+        name: abstractExercise.slotName, // Nombre del ejercicio sugerido por la IA
+        muscleGroup: abstractExercise.muscleGroup, // Grupo muscular para crear el ejercicio
         order: exerciseOrder++,
         sets: sets
       });
-
-      // Marcar este ejercicio como usado
-      usedExerciseIds.add(exercise.id);
     }
   }
 

@@ -43,6 +43,7 @@ router.get('/categories-exercises', exercisecategoryController.getAllCategories)
 // Routines
 router.post('/routines', routineController.createRoutine);
 router.post('/routines/recommend', routineController.recommendRoutine);
+router.post('/routines/create-by-ai', routineController.createRoutineByAI);
 router.get('/routines/all/:userId', routineController.getAllRoutines);
 router.get('/routines/:routineId', routineController.getRoutineById);
 router.put('/routines/:routineId', routineController.updateRoutine);
