@@ -1,4 +1,5 @@
 import { Avatar, AvatarEquippedItem, AvatarItem, Session } from '../models/index.js';
+import { Op } from 'sequelize';
 
 export const avatarController = {
   // Crear un avatar
@@ -87,38 +88,6 @@ export const avatarController = {
           res.status(500).json({ error: error.message });
         }
     },  
-
-    async getByUser(req, res) {
-        try {
-            const { userId } = req.params;
-
-            const avatar = await Avatar.findOne({
-            where: { userId },
-            include: [{
-                model: AvatarItem,
-                as: 'equippedItems',
-                through: { attributes: ['colorHex'] }
-            }]
-            });
-          
-            if (!avatar) {
-            return res.json({
-                hasAvatar: false,
-                avatar: null,
-                equippedItems: []
-            });
-            }
-          
-            res.json({
-            hasAvatar: true,
-            avatar,
-            equippedItems: avatar.equippedItems || []
-            });
-        } catch (error) 
-        {
-            res.status(500).json({ error: error.message });
-        }
-    },
 
     async update(req, res) {
         try {

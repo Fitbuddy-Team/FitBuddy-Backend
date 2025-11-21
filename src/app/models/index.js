@@ -17,6 +17,11 @@ import GroupMemberModel from './groupmember.js';
 import LeagueModel from './league.js';
 import LeagueMemberModel from './leaguemember.js';
 import MuscomonedasModel from './muscomonedas.js';
+import AvatarModel from './avatar.js';
+import AvatarItemModel from './avataritem.js';
+import AvatarEquippedItemModel from './avatarequippeditem.js';
+import UserAvatarItemModel from './useravataritem.js';
+
 
 const dbConfig = config.database;
 
@@ -49,6 +54,10 @@ const GroupMember = GroupMemberModel(sequelize, DataTypes);
 const League = LeagueModel(sequelize, DataTypes);
 const LeagueMember = LeagueMemberModel(sequelize, DataTypes);
 const Muscomonedas = MuscomonedasModel(sequelize, DataTypes);
+const Avatar = AvatarModel(sequelize, DataTypes);
+const AvatarItem = AvatarItemModel(sequelize, DataTypes);
+const AvatarEquippedItem = AvatarEquippedItemModel(sequelize, DataTypes);
+const UserAvatarItem = UserAvatarItemModel(sequelize, DataTypes);
 
 // Asociaciones
 Exercise.associate?.({ ExerciseCategory, User, MuscleGroup, Routine, ExerciseMuscleGroup, ExerciseRoutine });
@@ -57,7 +66,7 @@ ExerciseMuscleGroup.associate?.({ Exercise, MuscleGroup });
 MuscleGroup.associate?.({ Exercise, ExerciseMuscleGroup });
 Routine.associate?.({ User, Exercise, ExerciseRoutine });
 Session.associate?.({ User, Routine, Exercise, ExerciseSession });
-User.associate?.({ Routine, Session, Exercise, Group, GroupMember, LeagueMember, Muscomonedas });
+User.associate?.({ Routine, Session, Exercise, Group, GroupMember, LeagueMember, Muscomonedas, Avatar, UserAvatarItem });
 Set.associate?.({ ExerciseRoutine, ExerciseSession });
 ExerciseRoutine.associate?.({ Routine, Exercise, Set });
 ExerciseSession.associate?.({ Session, Exercise, Set });
@@ -66,6 +75,10 @@ GroupMember.associate?.({ Group, User });
 League.associate?.({ LeagueMember });
 LeagueMember.associate?.({ User, League });
 Muscomonedas.associate?.({ User });
+Avatar.associate?.({ User, AvatarItem, AvatarEquippedItem });
+AvatarItem.associate?.({ Avatar, AvatarEquippedItem, UserAvatarItem });
+AvatarEquippedItem.associate?.({ Avatar, AvatarItem });
+UserAvatarItem.associate?.({ User, AvatarItem });
 
 export {
   sequelize,
@@ -83,5 +96,9 @@ export {
   GroupMember,
   League,
   LeagueMember,
-  Muscomonedas
+  Muscomonedas,
+  Avatar,
+  AvatarItem,
+  AvatarEquippedItem,
+  UserAvatarItem
 };

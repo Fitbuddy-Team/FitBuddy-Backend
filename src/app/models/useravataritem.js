@@ -2,7 +2,12 @@
 import { Model } from 'sequelize';
 
 export default (sequelize, DataTypes) => {
-  class UserAvatarItem extends Model {}
+  class UserAvatarItem extends Model {
+    static associate(models) {
+      this.belongsTo(models.User, { foreignKey: 'userId', as: 'user' });
+      this.belongsTo(models.AvatarItem, { foreignKey: 'itemId', as: 'item' });
+    }
+  }
 
   UserAvatarItem.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
