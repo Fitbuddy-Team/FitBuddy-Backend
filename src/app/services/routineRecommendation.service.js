@@ -206,13 +206,13 @@ Estructura JSON requerida (todos los campos son obligatorios):
 
 IMPORTANTE: 
 - Debes generar SOLO 1 sesión en el array "sessions", NO múltiples sesiones.
-- MÍNIMO 4 ejercicios en la sesión. NO generes menos de 4 ejercicios.
+- MÍNIMO 5 ejercicios en la rutina.
 ${requestedMuscleGroup ? `- El usuario pidió rutina para ${requestedMuscleGroupName}. TODOS los ejercicios deben usar muscleGroup de: ${requestedMuscleGroup.join(' o ')}.` : ''}
 
 REGLAS OBLIGATORIAS (CRÍTICO - NO IGNORES):
 - Cada ejercicio DEBE tener: slotName (string), muscleGroup (string), type (string), restTime (number), sets (array)
 - Cada set DEBE tener: reps (string), intensity (string), weight (number), restTime (number)
-- weight: OBLIGATORIO. DEBE ser un número (puede ser 0 para ejercicios sin peso como flexiones, sentadillas con peso corporal, etc.). Ejemplos: 0 (sin peso), 10, 20, 50, 100. NUNCA uses null o undefined.
+- weight: OBLIGATORIO. DEBE ser un número (y ser 0 para ejercicios sin peso como flexiones, sentadillas con peso corporal, etc.). Ejemplos: 0 (sin peso), 10, 20, 50, 100. NUNCA uses null o undefined.
 - restTime: OBLIGATORIO. DEBE ser un número entre 1 y 4 (en minutos). Especifica según grupo muscular:
   * Pecho/Piernas/Espalda (compound): 3-4 minutos
   * Hombros: 2-3 minutos
@@ -224,7 +224,9 @@ REGLAS OBLIGATORIAS (CRÍTICO - NO IGNORES):
 - Devuelve SOLO el JSON, sin texto adicional ni markdown
 - Los ejercicios que entregues idealmente que no sea lo mismo escrito de distinta manera
 - QUe sean ejercicios reales de máquinas de gimnasio y no inventados
-- QUe no se repitan ejercicios!`;
+- QUe no se repitan ejercicios!
+`;
+
 
 
 
@@ -418,8 +420,8 @@ function validateAbstractPlan(plan) {
   });
 
   // Validar solo el mínimo (4 ejercicios). El máximo se limita en buildFinalRoutine
-  if (totalExercises < 4) {
-    throw new Error(`Plan inválido: debe tener al menos 4 ejercicios (actualmente: ${totalExercises})`);
+  if (totalExercises < 3) {
+    throw new Error(`Plan inválido: debe tener al menos 3 ejercicios (actualmente: ${totalExercises})`);
   }
   
   // Si hay más de 7 ejercicios, solo advertir (buildFinalRoutine los limitará automáticamente)
