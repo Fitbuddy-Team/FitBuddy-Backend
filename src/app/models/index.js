@@ -76,7 +76,7 @@ League.associate?.({ LeagueMember });
 LeagueMember.associate?.({ User, League });
 Muscomonedas.associate?.({ User });
 Avatar.associate?.({ User, AvatarItem, AvatarEquippedItem });
-AvatarItem.associate?.({ Avatar, AvatarEquippedItem, UserAvatarItem });
+AvatarItem.associate?.({ Avatar, AvatarEquippedItem, User, UserAvatarItem });
 AvatarEquippedItem.associate?.({ Avatar, AvatarItem });
 UserAvatarItem.associate?.({ User, AvatarItem });
 

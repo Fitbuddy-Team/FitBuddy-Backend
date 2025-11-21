@@ -30,7 +30,8 @@ export const storeController = {
       const transaction = await UserAvatarItem.sequelize.transaction();
     
       try {
-        const { userId, itemId } = req.body;
+        const { userId } = req.params;
+        const { itemId } = req.body;
         
         // Validar existencia de item
         const item = await AvatarItem.findByPk(itemId);
@@ -80,6 +81,19 @@ export const storeController = {
       } catch (error) {
         await transaction.rollback();
         console.error('Error en compra:', error);
+        res.status(500).json({ error: error.message });
+      }
+    },
+    // obtener items comprados por usuario
+    async getPurchasedItemsByUser(req, res) {
+      try {
+        const { userId } = req.params;
+        const purchasedItems = await UserAvatarItem.findAll({
+          where: { userId },
+          include: [{ model: AvatarItem, as: 'item' }]
+        });
+        res.json(purchasedItems);
+      } catch (error) {
         res.status(500).json({ error: error.message });
       }
     }

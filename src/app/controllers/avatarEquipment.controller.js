@@ -1,4 +1,4 @@
-import { AvatarEquippedItem, AvatarItem, UserAvatarItem } from '../models/index.js';
+import { AvatarEquippedItem, AvatarItem, UserAvatarItem, Avatar } from '../models/index.js';
 
 export const avatarEquipmentController = {
   // Equipar un ítem
@@ -6,7 +6,8 @@ export const avatarEquipmentController = {
       const transaction = await AvatarEquippedItem.sequelize.transaction();
 
       try {
-        const { userId, itemId, colorHex } = req.body;
+        const { userId } = req.params;
+        const { itemId, colorHex } = req.body;
         const avatar = await Avatar.findOne({ where: { userId } });
         if (!avatar) {
           await transaction.rollback();
@@ -67,8 +68,14 @@ export const avatarEquipmentController = {
   // Desequipar
   async unequipItem(req, res) {
     try {
-      const { avatarId, itemId } = req.params;
-      await AvatarEquippedItem.destroy({ where: { avatarId, itemId } });
+     const { userId } = req.params;
+     const { itemId } = req.params;
+     const avatar = await Avatar.findOne({ where: { userId } });
+        if (!avatar) {
+          await transaction.rollback();
+          return res.status(404).json({ message: 'El usuario no tiene un avatar creado.' });
+        }
+      await AvatarEquippedItem.destroy({ where: { avatarId: avatar.id, itemId } });
       res.status(200).json({ message: 'Ítem removido del avatar.' });
     } catch (error) {
       res.status(500).json({ error: error.message });

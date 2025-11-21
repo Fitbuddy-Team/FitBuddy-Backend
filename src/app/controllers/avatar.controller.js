@@ -3,9 +3,10 @@ import { Op } from 'sequelize';
 
 export const avatarController = {
   // Crear un avatar
-    async create(req, res) {
+    async createUserAvatar(req, res) {
       try {
-        const { userId, gender, bodyBorderPath, bodyAreaPath, bodyColorHex } = req.body;
+        const {userId } = req.params;
+        const { gender, bodyBorderPath, bodyAreaPath, bodyColorHex } = req.body;
 
         const newAvatar = await Avatar.create({
           userId,
@@ -21,6 +22,8 @@ export const avatarController = {
         return res.status(500).json({ error: error.message });
       }
     },
+    // obtener el avatar y los items equipados
+    
 
     async getByUser(req, res) {
         try {
@@ -29,12 +32,20 @@ export const avatarController = {
              const avatar = await Avatar.findOne({
             where: { userId },
             include: [
-              {
-                model: AvatarItem,
-                as: 'equippedItems',
-                through: { attributes: ['colorHex'] }
-              }
-            ]
+            {
+              model: AvatarItem,
+              as: 'equippedItems',
+              attributes: [
+                'id',
+                'type',
+                'borderSpritePath',
+                'areaSpritePath',
+                'price',
+                'isDefault'
+              ],
+              through: { attributes: ['colorHex'] }
+            }
+  ]
           });
     
              if (!avatar) {
@@ -95,6 +106,7 @@ export const avatarController = {
           const { gender, bodyBorderPath, bodyAreaPath, bodyColorHex } = req.body;
 
           const avatar = await Avatar.findOne({ where: { userId } });
+          
 
           // ⚙️ Si no existe, no es un error: se devuelve hasAvatar: false
           if (!avatar) {
@@ -113,13 +125,24 @@ export const avatarController = {
           await avatar.save();
 
           const updated = await Avatar.findOne({
-            where: { userId },
-            include: [{
+          where: { userId },
+          include: [
+            {
               model: AvatarItem,
               as: 'equippedItems',
+              attributes: [
+                'id',
+                'type',
+                'borderSpritePath',
+                'areaSpritePath',
+                'price',
+                'isDefault'
+              ],
               through: { attributes: ['colorHex'] }
-            }]
-          });
+            }
+          ]
+        });
+
 
           res.status(200).json({
             message: 'Avatar actualizado correctamente.',

@@ -9,6 +9,9 @@ import { sessionController } from '../controllers/session.controller.js';
 import { groupController } from '../controllers/group.controller.js';
 import { leagueController } from '../controllers/league.controller.js';
 import { muscomonedasController } from '../controllers/muscomonedas.controller.js';
+import { avatarController } from '../controllers/avatar.controller.js';
+import { avatarEquipmentController } from '../controllers/avatarEquipment.controller.js';
+import {storeController} from '../controllers/store.controller.js';
 const router = Router();
 
 
@@ -75,6 +78,22 @@ router.get('/league/top/:N/:numSessions/:userId', leagueController.getTopPlayers
 
 // Muscomonedas
 router.get('/Muscomonedas/:userId', muscomonedasController.getUserMuscomonedas);
+
+
+// Avatar 
+router.get('/avatar/user/:userId', avatarController.getByUser);
+router.post('/avatar/create/user/:userId', avatarController.createUserAvatar);
+router.put('/avatar/update/user/:userId', avatarController.update);
+
+
+// Avatar Equipment
+router.post('/avatar-equipment/equip/user/:userId', avatarEquipmentController.equipItem);
+router.post('/avatar-equipment/unequip/user/:userId', avatarEquipmentController.unequipItem);
+
+// Store
+router.get('/store/items/type/:type/user/:userId', storeController.getItemsByType);
+router.post('/store/purchase/user/:userId', storeController.purchaseItem);
+router.get('/store/purchased-items/user/:userId', storeController.getPurchasedItemsByUser);
 
 export default router;
 

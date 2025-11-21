@@ -1,6 +1,7 @@
 'use strict';
 import { Model } from 'sequelize';
 
+
 export default (sequelize, DataTypes) => {
   class Avatar extends Model {
     static associate(models) {
