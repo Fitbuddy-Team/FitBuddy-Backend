@@ -10,16 +10,16 @@ export default (sequelize, DataTypes) => {
         foreignKey: 'itemId'
       });
       this.belongsToMany(models.User, {
-        through: models.UserAvatarItem,
-        as: 'owners',
-        foreignKey: 'itemId'
-      });
+  through: models.UserAvatarItem,
+  as: 'owners',
+  foreignKey: 'itemId',
+  otherKey: 'userId'
+});
     }
   }
 
   AvatarItem.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    name: { type: DataTypes.STRING, allowNull: false },
     type: { type: DataTypes.ENUM('hair', 'top', 'bottom', 'medal'), allowNull: false },
     borderSpritePath: { type: DataTypes.STRING, allowNull: false },
     areaSpritePath: { type: DataTypes.STRING, allowNull: true },

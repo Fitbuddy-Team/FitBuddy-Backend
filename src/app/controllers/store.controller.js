@@ -1,4 +1,4 @@
-import { AvatarItem, UserAvatarItem } from '../models/index.js';
+import { AvatarItem, UserAvatarItem,  Muscomonedas } from '../models/index.js';
 
 export const storeController = {
   // Listar ítems por tipo (filtra por userId)

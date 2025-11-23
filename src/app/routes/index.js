@@ -89,6 +89,7 @@ router.put('/avatar/update/user/:userId', avatarController.update);
 // Avatar Equipment
 router.post('/avatar-equipment/equip/user/:userId', avatarEquipmentController.equipItem);
 router.post('/avatar-equipment/unequip/user/:userId', avatarEquipmentController.unequipItem);
+router.put('/avatar-equipment/change-color/user/:userId', avatarEquipmentController.changeEquippedItemColor);
 
 // Store
 router.get('/store/items/type/:type/user/:userId', storeController.getItemsByType);

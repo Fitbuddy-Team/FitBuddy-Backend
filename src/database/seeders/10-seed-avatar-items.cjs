@@ -123,8 +123,45 @@ module.exports = {
         createdAt: new Date(),
         updatedAt: new Date()
       },
+      
 
       // 👖 Bottoms
+      {
+        type: 'bottom',
+        borderSpritePath: '/base/underwear_colors/big_boy.png',
+        areaSpritePath: null, 
+        price: 0,
+        isDefault: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        type: 'bottom',
+        borderSpritePath: '/base/underwear_colors/big_girl.png',
+        areaSpritePath: null, 
+        price: 0,
+        isDefault: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        type: 'bottom',
+        borderSpritePath: '/base/underwear_colors/skinny_girl.png',
+        areaSpritePath: null, 
+        price: 0,
+        isDefault: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        type: 'bottom',
+        borderSpritePath: '/base/underwear_colors/skinny_boy.png',
+        areaSpritePath: null, 
+        price: 0,
+        isDefault: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
 // PENDING ADDITION OF BOTTOMS
 
       // 🥇 Medals
@@ -133,7 +170,7 @@ module.exports = {
         borderSpritePath: '/medals/medal_1.png',
         areaSpritePath: null, 
         price: 50,
-        isDefault: true,
+        isDefault: false,
         createdAt: new Date(),
         updatedAt: new Date()
       },

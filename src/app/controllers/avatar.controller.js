@@ -7,6 +7,16 @@ export const avatarController = {
       try {
         const {userId } = req.params;
         const { gender, bodyBorderPath, bodyAreaPath, bodyColorHex } = req.body;
+        const baseCondition = 'skinny';
+        const genderLabel = gender === 'female' ? 'girl' : 'boy';
+
+        // Buscar underwear base correspondiente
+        const underwear = await AvatarItem.findOne({
+          where: {
+          type: 'bottom',
+          borderSpritePath: `/base/underwear_colors/${baseCondition}_${genderLabel}.png`},
+          
+        });
 
         const newAvatar = await Avatar.create({
           userId,
@@ -16,15 +26,22 @@ export const avatarController = {
           bodyColorHex
         });
 
+        if (underwear) {
+          await AvatarEquippedItem.create({
+              avatarId: newAvatar.id,
+              itemId: underwear.id,
+              colorHex: null
+            });
+        }
+        
         return res.status(201).json(newAvatar);
-      } catch (error) {
+      } 
+      catch (error) {
         console.error(error);
         return res.status(500).json({ error: error.message });
       }
     },
-    // obtener el avatar y los items equipados
     
-
     async getByUser(req, res) {
         try {
           const { userId } = req.params;
@@ -73,19 +90,30 @@ export const avatarController = {
           const muscularThreshold = 50;
           const gender = avatar.gender === 'female' ? 'girl' : 'boy';
           const bodyCondition = weeklyPoints >= muscularThreshold ? 'fit' : 'skinny';
-          const newBodyBorderPath = `/sprites/base/lines/${bodyCondition}_${gender}.png`;
-          const newBodyAreaPath = `/sprites/base/colors/${bodyCondition}_${gender}.png`;
+          const newBodyBorderPath = `/base/lines/${bodyCondition}_${gender}.png`;
+          const newBodyAreaPath = `/base/colors/${bodyCondition}_${gender}.png`;
     
              // 🔹 Actualizar avatar solo si cambió el cuerpo
           const needsUpdate =
             avatar.bodyBorderPath !== newBodyBorderPath ||
             avatar.bodyAreaPath !== newBodyAreaPath;
     
-             if (needsUpdate) {
-            avatar.bodyBorderPath = newBodyBorderPath;
-            avatar.bodyAreaPath = newBodyAreaPath;
-            await avatar.save();
-          }
+            if (needsUpdate) {
+              avatar.bodyBorderPath = newBodyBorderPath;
+              avatar.bodyAreaPath = newBodyAreaPath;
+              await avatar.save();
+              const newUnderwear = await AvatarItem.findOne({
+                where: {
+                type: 'bottom',
+                borderSpritePath: `/base/underwear_colors/${bodyCondition}_${gender}.png`}});
+
+              if (newUnderwear) {
+              await AvatarEquippedItem.update(
+                { itemId: newUnderwear.id },
+                { where: { avatarId: avatar.id}}
+              );}
+              }
+            
     
              res.status(200).json({
             message: needsUpdate
@@ -115,6 +143,7 @@ export const avatarController = {
               message: 'El usuario aún no tiene un avatar creado.'
             });
           }
+          const genderChanged = gender && gender !== avatar.gender;
 
           // 🔧 Actualizar solo los campos que vengan en el body
           if (gender !== undefined) avatar.gender = gender;
@@ -153,7 +182,9 @@ export const avatarController = {
           console.error('Error al actualizar el avatar:', error);
           res.status(500).json({ error: error.message });
         }
-    }
+    },
+
+    //función que actualice el color de
 };
 
 export default avatarController;
