@@ -15,6 +15,14 @@ export default (sequelize, DataTypes) => {
                 foreignKey: 'groupId', 
                 as: 'members' 
             });
+            this.hasMany(models.Post, { 
+                foreignKey: 'groupId', 
+                as: 'posts' 
+            });
+            this.hasMany(models.Push, {
+                foreignKey: 'groupId',
+                as: 'pushs'
+            });
         }
     }
     Group.init({
