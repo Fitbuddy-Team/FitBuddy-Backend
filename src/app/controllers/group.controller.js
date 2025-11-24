@@ -248,7 +248,7 @@ export const groupController = {
           { replacements: { userId: Number(topMember.userId) }, type: sequelize.QueryTypes.SELECT, transaction: t }
         );
         const sessionRow = sessionRows && sessionRows.length ? sessionRows[0] : null;
-        const session = sessionRow
+        let session = sessionRow
           ? {
               id: sessionRow.id,
               date: sessionRow.date || sessionRow.createdAt || null,
@@ -322,7 +322,7 @@ export const groupController = {
         });
       } catch (err) {
         await t.rollback();
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: err.message});
       }
     },
 
