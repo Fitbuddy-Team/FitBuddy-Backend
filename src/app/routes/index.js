@@ -9,6 +9,9 @@ import { sessionController } from '../controllers/session.controller.js';
 import { groupController } from '../controllers/group.controller.js';
 import { leagueController } from '../controllers/league.controller.js';
 import { muscomonedasController } from '../controllers/muscomonedas.controller.js';
+import { postController } from '../controllers/post.controller.js';
+import { pushController } from '../controllers/push.controller.js';
+import upload from "../../config/multerCloudinary.js";
 const router = Router();
 
 
@@ -76,5 +79,14 @@ router.get('/league/top/:N/:numSessions/:userId', leagueController.getTopPlayers
 // Muscomonedas
 router.get('/Muscomonedas/:userId', muscomonedasController.getUserMuscomonedas);
 
-export default router;
+// Posts
+router.get('/posts/group/:groupId', postController.getGroupPosts);
+router.post('/posts/:sessionId/group/:groupId', upload.single("image"), postController.createPost);
+router.delete('/posts/:postId', postController.deletePost);
 
+// Push Notifications
+router.post('/pushs/:senderId/to/:receiverId/group/:groupId', pushController.createPush);
+router.get('/pushs/:receiverId/group/:groupId', pushController.getPush);
+router.put('/pushs/:receiverId/group/:groupId', pushController.updatePush);
+
+export default router;
