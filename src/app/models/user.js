@@ -17,6 +17,10 @@ export default (sequelize, DataTypes) => {
         onDelete: 'CASCADE', 
         hooks: true 
       });
+      this.hasMany(models.UserAvatarItem, {
+      foreignKey: 'userId',
+      as: 'ownedAvatarItems'
+      });
       this.hasMany(models.Exercise, { 
         foreignKey: 'userId', 
         as: 'exercises', 
