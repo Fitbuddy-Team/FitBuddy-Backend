@@ -107,7 +107,7 @@ export {
   Avatar,
   AvatarItem,
   AvatarEquippedItem,
-  UserAvatarItem
+  UserAvatarItem,
   Post,
   Push,
 };
