@@ -43,6 +43,16 @@ export default (sequelize, DataTypes) => {
         as: 'leagueMember', 
         onDelete: 'CASCADE'
       });
+      this.hasMany(models.Push, { 
+        foreignKey: 'senderId', 
+        as: 'sentPushs',
+        onDelete: 'CASCADE'
+      });
+      this.hasMany(models.Push, { 
+        foreignKey: 'receiverId', 
+        as: 'receivedPushs',
+        onDelete: 'CASCADE'
+      });
     }
   }
   User.init({

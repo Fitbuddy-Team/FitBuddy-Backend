@@ -12,6 +12,9 @@ import { muscomonedasController } from '../controllers/muscomonedas.controller.j
 import { avatarController } from '../controllers/avatar.controller.js';
 import { avatarEquipmentController } from '../controllers/avatarEquipment.controller.js';
 import {storeController} from '../controllers/store.controller.js';
+import { postController } from '../controllers/post.controller.js';
+import { pushController } from '../controllers/push.controller.js';
+import upload from "../../config/multerCloudinary.js";
 const router = Router();
 
 
@@ -96,5 +99,14 @@ router.get('/store/items/type/:type/user/:userId', storeController.getItemsByTyp
 router.post('/store/purchase/user/:userId', storeController.purchaseItem);
 router.get('/store/purchased-items/user/:userId', storeController.getPurchasedItemsByUser);
 
-export default router;
+// Posts
+router.get('/posts/group/:groupId', postController.getGroupPosts);
+router.post('/posts/:sessionId/group/:groupId', upload.single("image"), postController.createPost);
+router.delete('/posts/:postId', postController.deletePost);
 
+// Push Notifications
+router.post('/pushs/:senderId/to/:receiverId/group/:groupId', pushController.createPush);
+router.get('/pushs/:receiverId/group/:groupId', pushController.getPush);
+router.put('/pushs/:receiverId/group/:groupId', pushController.updatePush);
+
+export default router;

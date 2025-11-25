@@ -17,6 +17,10 @@ export default (sequelize, DataTypes) => {
         otherKey: 'exerciseId',
         as: 'exercises'
       });
+      this.hasMany(models.Post, { 
+        foreignKey: 'sessionId', 
+        as: 'posts' 
+      });
     }
   }
   Session.init({

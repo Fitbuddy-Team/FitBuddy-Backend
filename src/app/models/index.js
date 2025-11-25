@@ -22,6 +22,8 @@ import AvatarItemModel from './avataritem.js';
 import AvatarEquippedItemModel from './avatarequippeditem.js';
 import UserAvatarItemModel from './useravataritem.js';
 
+import PostModel from './post.js';
+import PushModel from './push.js';
 
 const dbConfig = config.database;
 
@@ -58,6 +60,8 @@ const Avatar = AvatarModel(sequelize, DataTypes);
 const AvatarItem = AvatarItemModel(sequelize, DataTypes);
 const AvatarEquippedItem = AvatarEquippedItemModel(sequelize, DataTypes);
 const UserAvatarItem = UserAvatarItemModel(sequelize, DataTypes);
+const Post = PostModel(sequelize, DataTypes);
+const Push = PushModel(sequelize, DataTypes);
 
 // Asociaciones
 Exercise.associate?.({ ExerciseCategory, User, MuscleGroup, Routine, ExerciseMuscleGroup, ExerciseRoutine });
@@ -65,12 +69,13 @@ ExerciseCategory.associate?.({ Exercise });
 ExerciseMuscleGroup.associate?.({ Exercise, MuscleGroup });
 MuscleGroup.associate?.({ Exercise, ExerciseMuscleGroup });
 Routine.associate?.({ User, Exercise, ExerciseRoutine });
-Session.associate?.({ User, Routine, Exercise, ExerciseSession });
-User.associate?.({ Routine, Session, Exercise, Group, GroupMember, LeagueMember, Muscomonedas, Avatar, UserAvatarItem });
+
+User.associate?.({ Routine, Session, Exercise, Group, GroupMember, LeagueMember, Muscomonedas, Push, Avatar, UserAvatarItem });
+Session.associate?.({ User, Routine, Exercise, ExerciseSession, Post });
 Set.associate?.({ ExerciseRoutine, ExerciseSession });
 ExerciseRoutine.associate?.({ Routine, Exercise, Set });
 ExerciseSession.associate?.({ Session, Exercise, Set });
-Group.associate?.({ GroupMember, User });
+Group.associate?.({ GroupMember, User, Post, Push });
 GroupMember.associate?.({ Group, User });
 League.associate?.({ LeagueMember });
 LeagueMember.associate?.({ User, League });
@@ -79,6 +84,8 @@ Avatar.associate?.({ User, AvatarItem, AvatarEquippedItem });
 AvatarItem.associate?.({ Avatar, AvatarEquippedItem, User, UserAvatarItem });
 AvatarEquippedItem.associate?.({ Avatar, AvatarItem });
 UserAvatarItem.associate?.({ User, AvatarItem });
+Post.associate?.({ Group, Session });
+Push.associate?.({ Group, User });
 
 export {
   sequelize,
@@ -101,4 +108,6 @@ export {
   AvatarItem,
   AvatarEquippedItem,
   UserAvatarItem
+  Post,
+  Push,
 };
