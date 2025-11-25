@@ -23,11 +23,12 @@ export const avatarEquipmentController = {
       return res.status(404).json({ message: 'El ítem no existe.' });
     }
 
-    // 2️⃣ Verificar que el usuario tenga ese ítem comprado
-    const owned = await UserAvatarItem.findOne({ where: { userId, itemId } });
-    if (!owned) {
-      await transaction.rollback();
-      return res.status(403).json({ message: 'El usuario no posee este ítem.' });
+    if (!item.isDefault) {
+      const owned = await UserAvatarItem.findOne({ where: { userId, itemId } });
+      if (!owned) {
+        await transaction.rollback();
+        return res.status(403).json({ message: 'El usuario no posee este ítem.' });
+      }
     }
 
     // 3️⃣ Verificar si el avatar ya tiene equipado otro ítem del mismo tipo
