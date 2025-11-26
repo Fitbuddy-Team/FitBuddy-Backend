@@ -162,14 +162,31 @@ module.exports = {
         createdAt: new Date(),
         updatedAt: new Date()
       },
-// PENDING ADDITION OF BOTTOMS
 
       // 🥇 Medals
       {
         type: 'medal',
         borderSpritePath: '/medals/medal_1.png',
         areaSpritePath: null, 
-        price: 50,
+        price: 70,
+        isDefault: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        type: 'medal',
+        borderSpritePath: '/medals/medal_2.png',
+        areaSpritePath: null, 
+        price: 150,
+        isDefault: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        type: 'medal',
+        borderSpritePath: '/medals/medal_3.png',
+        areaSpritePath: null, 
+        price: 300,
         isDefault: false,
         createdAt: new Date(),
         updatedAt: new Date()
