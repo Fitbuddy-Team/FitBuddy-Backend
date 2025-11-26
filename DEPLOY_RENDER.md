@@ -401,15 +401,95 @@ npm run db:seed:undo
 
 ---
 
+## Configurar Deploy Automático (Auto-Deploy)
+
+### ¿Qué es el Auto-Deploy?
+El auto-deploy hace que Render despliegue automáticamente tu aplicación cada vez que hagas push a la rama configurada (por ejemplo, `main` o `prueba-deploy-andrew`).
+
+### Configuración del Auto-Deploy
+
+**Por defecto, Render tiene el auto-deploy ACTIVADO** cuando conectas un repositorio. Pero puedes verificar y ajustar la configuración así:
+
+#### Paso 1: Acceder a la Configuración del Servicio
+1. Ve a tu servicio web en Render Dashboard
+2. Haz clic en la pestaña **"Settings"** (Configuración)
+3. Desplázate hasta la sección **"Auto-Deploy"**
+
+#### Paso 2: Verificar/Configurar Auto-Deploy
+Deberías ver estas opciones:
+
+**✅ Auto-Deploy: Enabled (Recomendado)**
+- Render detecta automáticamente cada push a la rama configurada
+- Ejecuta el build automáticamente
+- Despliega la nueva versión
+
+**⚠️ Auto-Deploy: Disabled (Manual)**
+- Solo despliegas manualmente desde el Dashboard
+- Útil si quieres controlar cuándo se despliega
+
+#### Paso 3: Configurar la Rama (Branch)
+En la misma sección de Settings, verifica:
+- **Branch**: Asegúrate de que sea la rama correcta (ejemplo: `main`, `master`, `prueba-deploy-andrew`)
+
+**Para tu caso específico:**
+- Si quieres que se despliegue cada vez que hagas push a `prueba-deploy-andrew`, configúrala como:
+  ```
+  Branch: prueba-deploy-andrew
+  ```
+
+#### Paso 4: Configuraciones Adicionales (Opcional)
+
+**Pull Request Previews** (Solo en planes de pago):
+- Render puede crear previews de tu app para cada Pull Request
+- Útil para testing antes de merge
+
+**Render Deploy Hooks** (Webhooks):
+- Puedes configurar webhooks para notificarte cuando hay un deploy
+- Útil para integrar con Slack, Discord, etc.
+
+### Verificar que el Auto-Deploy Está Funcionando
+
+1. **Haz un cambio pequeño** en tu código
+2. **Haz commit y push:**
+   ```bash
+   git add .
+   git commit -m "test: verificar auto-deploy"
+   git push origin prueba-deploy-andrew
+   ```
+3. **Ve a Render Dashboard** → Tu servicio → Pestaña **"Events"**
+4. Deberías ver que Render detecta el push y comienza a hacer build automáticamente
+
+### Si el Auto-Deploy No Funciona
+
+**Verifica:**
+1. ✅ Que el repositorio esté correctamente conectado
+2. ✅ Que la rama configurada coincida con la rama a la que haces push
+3. ✅ Que tengas permisos de acceso al repositorio en Render
+4. ✅ Revisa la pestaña **"Events"** para ver errores
+
+**Si necesitas reconectar el repositorio:**
+1. Settings → Scroll hasta **"Repository"**
+2. Haz clic en **"Disconnect"** y luego **"Connect"** nuevamente
+3. Autoriza el acceso si es necesario
+
+---
+
 ## Actualizar el Deploy
 
 Cada vez que hagas push a la rama configurada (generalmente `main`):
-1. Render detectará automáticamente los cambios
+1. Render detectará automáticamente los cambios (si auto-deploy está activado)
 2. Ejecutará el build command
 3. Desplegará la nueva versión
 4. El servicio se reiniciará automáticamente
 
 Puedes ver el progreso en tiempo real en la pestaña **"Events"** del Dashboard.
+
+### Deploy Manual (si auto-deploy está desactivado)
+Si tienes auto-deploy desactivado, puedes desplegar manualmente:
+1. Ve a tu servicio en Render Dashboard
+2. Haz clic en **"Manual Deploy"**
+3. Selecciona la rama o commit que quieres desplegar
+4. Haz clic en **"Deploy latest commit"**
 
 ---
 
