@@ -14,6 +14,7 @@ const connectionFromEnv = () => {
   if (dialect === 'sqlite') {
     return { ...sqliteDefaults };
   }
+  console.log(process.env.DB_PASSWORD)
   return {
     dialect,
     host: process.env.DB_HOST || 'localhost',

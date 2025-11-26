@@ -1,13 +1,41 @@
 ## FitBuddy-Backend
 
-Backend de la app móvil FitBuddy. Stack: Node.js, Express, Sequelize. Base local: Postgresql
-
+Backend de la app móvil FitBuddy. Stack: Node.js, Express, Sequelize. Base local por defecto: Postgresql
 ### Requisitos
-- Node.js 18+
+- Tener postgresql instalado.
+- Node.js 20+
+```bash
+nvm use XX
+```
+con XX la versión de node que quieran usar. Recomendamos 23 para no tener problemas
 
 ### Instalación
+Duplica el archivo `.env.example` y luego ponle simplemente `.env`. Puedes usar los valores que vienen por defecto.
+
+Posteriormente, echa a andar el servidor en postgres (puede ser con otros comandos similares también)
+```bash
+sudo service postgresql start
+```
+Instalar dependencias
 ```bash
 npm install
+```
+
+Luego, crear base de datos, correr migraciones y crear seeds con:
+
+```bash
+npm run sequelize db:create
+```
+```bash
+npm run sequelize db:migrate
+```
+```bash
+npm run sequelize db:seed:all
+```
+Finalmente, correr la api con
+
+```bash
+npm run dev
 ```
 
 ### Variables de entorno
@@ -68,7 +96,6 @@ server.js              # arranque del servidor
 
 ### Notas para el equipo
 - `sequelize-cli` está mapeado a `src/database` y `src/app/models` vía `.sequelizerc`.
-
 
 
 
