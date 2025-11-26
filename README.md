@@ -1,7 +1,6 @@
 ## FitBuddy-Backend
 
 Backend de la app móvil FitBuddy. Stack: Node.js, Express, Sequelize. Base local por defecto: Postgresql
-
 ### Requisitos
 - Tener postgresql instalado.
 - Node.js 20+
@@ -48,6 +47,8 @@ Variables relevantes:
 - `DB_STORAGE` (ruta a .sqlite si usas sqlite)
 - `DB_HOST, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD` (si usas un motor distinto a sqlite)
 - `SEQUELIZE_LOGGING` (true/false)
+- `AUTH0_CLIENT_SECRET, AUTH0_CLIENT_ID, AUTH0_DOMAIN` (para autenticación con Auth0)
+- `BASE_URL` (URL base de la aplicación)
 
 ```bash
 cp .env.example .env
