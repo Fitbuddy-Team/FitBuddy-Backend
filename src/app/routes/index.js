@@ -79,6 +79,7 @@ router.get('/groups/users/:userId', groupController.getUserGroups);
 router.get('/league/user/:userId', leagueController.getUserLeague);
 router.get('/league/top/:N/:numSessions/:userId', leagueController.getTopPlayersSessions);
 
+
 // Muscomonedas
 router.get('/Muscomonedas/:userId', muscomonedasController.getUserMuscomonedas);
 
