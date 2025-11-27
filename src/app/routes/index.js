@@ -103,7 +103,7 @@ router.get('/store/purchased-items/user/:userId', storeController.getPurchasedIt
 
 // Posts
 router.get('/posts/group/:groupId', postController.getGroupPosts);
-router.post('/posts/:sessionId/group/:groupId', upload.single("image"), postController.createPost);
+router.post('/posts/:sessionId/group/:groupId', postController.createPost);
 router.delete('/posts/:postId', postController.deletePost);
 
 // Push Notifications
