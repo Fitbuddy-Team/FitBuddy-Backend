@@ -14,6 +14,7 @@ import { avatarEquipmentController } from '../controllers/avatarEquipment.contro
 import {storeController} from '../controllers/store.controller.js';
 import { postController } from '../controllers/post.controller.js';
 import { pushController } from '../controllers/push.controller.js';
+import { imageController } from '../controllers/image.controller.js';
 import upload from "../../config/multerCloudinary.js";
 const router = Router();
 
@@ -109,5 +110,8 @@ router.delete('/posts/:postId', postController.deletePost);
 router.post('/pushs/:senderId/to/:receiverId/group/:groupId', pushController.createPush);
 router.get('/pushs/:receiverId/group/:groupId', pushController.getPush);
 router.put('/pushs/:receiverId/group/:groupId', pushController.updatePush);
+
+// Image Upload (Base64 to Cloudinary)
+router.post('/images/upload', imageController.uploadBase64);
 
 export default router;
